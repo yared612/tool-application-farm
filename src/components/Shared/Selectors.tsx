@@ -65,7 +65,7 @@ export const PermissionSelector: React.FC<PermissionSelectorProps> = ({
 
             <div className={`transition-opacity ${isPublic ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
                 <div className="flex gap-2 mb-2 border-b border-gray-200 dark:border-gray-600 pb-1">
-                    <button type="button" onClick={() => setActiveTab('groups')} className={`flex-1 pb-2 text-sm font-bold border-b-2 ${activeTab === 'groups' ? 'border-[#68c9bc] text-[#68c9bc]' : 'border-transparent text-gray-400'}`}>族群選擇</button>
+                    <button type="button" onClick={() => setActiveTab('groups')} className={`flex-1 pb-2 text-sm font-bold border-b-2 ${activeTab === 'groups' ? 'border-[#68c9bc] text-[#68c9bc]' : 'border-transparent text-gray-400'}`}>群組選擇</button>
                     <button type="button" onClick={() => setActiveTab('users')} className={`flex-1 pb-2 text-sm font-bold border-b-2 ${activeTab === 'users' ? 'border-[#68c9bc] text-[#68c9bc]' : 'border-transparent text-gray-400'}`}>個別島民</button>
                 </div>
 
@@ -82,7 +82,7 @@ export const PermissionSelector: React.FC<PermissionSelectorProps> = ({
                                     </div>
                                 )
                             })}
-                            {groups.length === 0 && <div className="text-xs text-gray-400 col-span-2 text-center py-4">尚無族群</div>}
+                            {groups.length === 0 && <div className="text-xs text-gray-400 col-span-2 text-center py-4">尚無群組</div>}
                         </div>
                     )}
 
@@ -120,7 +120,7 @@ export const MemberSelector: React.FC<MemberSelectorProps> = ({ users, selectedI
 
     return (
         <div className="border border-gray-200 dark:border-gray-600 rounded-xl p-3">
-            <div className="text-xs font-bold text-gray-400 mb-2 uppercase">選擇族群成員</div>
+            <div className="text-xs font-bold text-gray-400 mb-2 uppercase">選擇群組成員</div>
             <div className="grid grid-cols-2 gap-2 h-32 overflow-y-auto custom-scrollbar">
                 {users.filter(u => u.role !== 'admin').map(user => {
                     const isSelected = selectedIds.includes(user.id);

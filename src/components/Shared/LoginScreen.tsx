@@ -24,7 +24,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, loading }) => {
             <div className="bg-[#fffdf2] dark:bg-[#2d3748] p-6 md:p-8 rounded-[32px] shadow-xl w-full max-w-sm md:max-w-md border-4 md:border-8 border-[#68c9bc] transform md:rotate-1 my-auto">
                 <div className="text-center mb-6">
                     <div className="inline-block bg-[#68c9bc] text-white px-4 py-1.5 md:px-6 md:py-2 rounded-full text-lg md:text-xl font-bold transform -rotate-2 mb-4 shadow-md">
-                        Apo Inc.
+                        Apo Platform
                     </div>
                     <h2 className="text-xl md:text-2xl font-bold text-[#5e5a52] dark:text-white flex items-center justify-center gap-2">
                         <Leaf className="text-[#68c9bc]" size={24} />
@@ -41,7 +41,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, loading }) => {
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
                             className="w-full bg-[#f6f7eb] dark:bg-[#1a202c] border-2 border-[#e0ddc8] dark:border-gray-600 rounded-2xl px-4 py-3 focus:outline-none focus:border-[#68c9bc] transition-colors"
-                            placeholder="工號"
+                            placeholder="帳號"
                         />
                     </div>
 

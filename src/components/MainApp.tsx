@@ -140,7 +140,7 @@ export default function MainApp() {
             {/* Sidebar */}
             <div className="hidden md:flex w-64 flex-col p-4 gap-4 border-r border-[#e0ddc8] dark:border-gray-700 bg-[#f9faef]/80 dark:bg-[#1a202c]/80 backdrop-blur-md">
                 <div className="flex items-center gap-3 px-2 mb-4">
-                    <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-xl ${currentUser.role === 'admin' ? 'bg-[#e8b15d]' : 'bg-[#68c9bc]'}`}>{currentUser.role === 'admin' ? '狸' : '島'}</div>
+                    <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-xl ${currentUser.role === 'admin' ? 'bg-[#e8b15d]' : 'bg-[#68c9bc]'}`}>{currentUser.role === 'admin' ? '管理' : '用戶'}</div>
                     <div><div className="font-bold text-[#5e5a52] dark:text-white">{currentUser.username}</div><div className="text-xs text-gray-500 uppercase">{currentUser.role}</div></div>
                 </div>
                 <nav className="flex-1 space-y-2">
@@ -149,8 +149,8 @@ export default function MainApp() {
                         <div className="text-xs font-bold text-gray-400 mt-6 mb-2 px-4 uppercase">後台管理</div>
                         <NavButton active={activeTab === 'admin-cats'} onClick={() => setActiveTab('admin-cats')} icon={Layout} label="類別管理" />
                         <NavButton active={activeTab === 'admin-tools'} onClick={() => setActiveTab('admin-tools')} icon={Code} label="工具上架" />
-                        <NavButton active={activeTab === 'admin-groups'} onClick={() => setActiveTab('admin-groups')} icon={Users} label="族群管理" />
-                        <NavButton active={activeTab === 'admin-users'} onClick={() => setActiveTab('admin-users')} icon={UserIcon} label="居民名冊" />
+                        <NavButton active={activeTab === 'admin-groups'} onClick={() => setActiveTab('admin-groups')} icon={Users} label="群組管理" />
+                        <NavButton active={activeTab === 'admin-users'} onClick={() => setActiveTab('admin-users')} icon={UserIcon} label="人員名冊" />
                     </>}
                 </nav>
                 <button onClick={() => setCurrentUser(null)} className="mt-auto flex items-center gap-3 p-3 rounded-2xl hover:bg-red-100 text-red-500 font-bold"><LogOut size={20} /> 登出</button>
@@ -192,7 +192,7 @@ export default function MainApp() {
 
                 {/* Admin Views */}
                 {activeTab === 'admin-users' && (
-                    <AdminSpreadsheet<User> title="居民帳號" icon={UserIcon} data={allUsers}
+                    <AdminSpreadsheet<User> title="人員帳號" icon={UserIcon} data={allUsers}
                         onAdd={() => { setEditingItem(null); setUserForm({ username: '', password: '', role: 'user' }); setIsUserModalOpen(true); }}
                         onEdit={i => { setEditingItem(i); setUserForm(i); setIsUserModalOpen(true); }}
                         onDelete={id => handleDelete('users', id)}
@@ -219,7 +219,7 @@ export default function MainApp() {
                                     render: (u, item) => u?.includes('PUBLIC') ?
                                         <span className="text-green-600 font-bold bg-green-50 px-2 py-0.5 rounded">公開</span> :
                                         <div className="flex flex-col text-xs text-gray-500">
-                                            <span>{item.allowedGroups?.length || 0} 族群</span>
+                                            <span>{item.allowedGroups?.length || 0} 群組</span>
                                             <span>{u?.length || 0} 個人</span>
                                         </div>
                                 },
@@ -260,7 +260,7 @@ export default function MainApp() {
                                     render: (u, item) => u?.includes('PUBLIC') ?
                                         <span className="text-green-600 font-bold">公開</span> :
                                         <div className="flex gap-1 text-xs">
-                                            <span className="bg-purple-100 text-purple-700 px-1 rounded">{item.allowedGroups?.length || 0} 族群</span>
+                                            <span className="bg-purple-100 text-purple-700 px-1 rounded">{item.allowedGroups?.length || 0} 群組</span>
                                             <span className="bg-blue-100 text-blue-700 px-1 rounded">{u?.length || 0} 人</span>
                                         </div>
                                 },
@@ -273,14 +273,14 @@ export default function MainApp() {
                 {activeTab === 'admin-groups' && (
                     <div className="h-full">
                         <AdminSpreadsheet<Group>
-                            title="族群管理"
+                            title="群組管理"
                             icon={Users}
                             data={allGroups}
                             onAdd={() => { setEditingItem(null); setGroupForm({ name: '', memberIds: [] }); setIsGroupModalOpen(true); }}
                             onEdit={(item) => { setEditingItem(item); setGroupForm(item); setIsGroupModalOpen(true); }}
                             onDelete={(id) => handleDelete('groups', id)}
                             columns={[
-                                { label: '族群名稱', key: 'name' },
+                                { label: '群組名稱', key: 'name' },
                                 { label: '人數', key: 'memberIds', render: (ids) => <span className="font-bold text-purple-600">{ids?.length || 0} 人</span> },
                                 {
                                     label: '成員預覽',
@@ -406,9 +406,9 @@ export default function MainApp() {
             </Modal>
 
             {/* Modal: Group */}
-            <Modal isOpen={isGroupModalOpen} onClose={() => setIsGroupModalOpen(false)} title={editingItem ? "編輯族群" : "新增族群"}>
+            <Modal isOpen={isGroupModalOpen} onClose={() => setIsGroupModalOpen(false)} title={editingItem ? "編輯群組" : "新增群組"}>
                 <div className="space-y-4">
-                    <div><label className="text-sm font-bold block mb-1">族群名稱</label><input value={groupForm.name} onChange={e => setGroupForm({ ...groupForm, name: e.target.value })} className="input-field" placeholder="例如：行銷部" /></div>
+                    <div><label className="text-sm font-bold block mb-1">群組名稱</label><input value={groupForm.name} onChange={e => setGroupForm({ ...groupForm, name: e.target.value })} className="input-field" placeholder="例如：行銷部" /></div>
                     <MemberSelector users={allUsers} selectedIds={groupForm.memberIds || []} onChange={ids => setGroupForm({ ...groupForm, memberIds: ids })} />
                     <button onClick={() => handleSave('groups', groupForm, setIsGroupModalOpen, () => setGroupForm({ name: '', memberIds: [] }))} className="action-btn"><Save className="inline mr-2" size={18} /> 儲存</button>
                 </div>
