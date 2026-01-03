@@ -1,7 +1,7 @@
 'use client';
 import { signInAnonymously } from 'firebase/auth';
 import { addDoc, collection, deleteDoc, doc, getDocs, onSnapshot, orderBy, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
-import { ChevronDown, ChevronRight, Code, Globe, Grid, Layout, Leaf, LogOut, Save, User as UserIcon, Users } from 'lucide-react';
+import { AlertCircle, CheckCircle, ChevronDown, ChevronRight, Code, Globe, Grid, Key, Layout, Leaf, LogOut, Save, User as UserIcon, Users } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 // Imports
@@ -44,6 +44,11 @@ export default function MainApp() {
     const [isUserModalOpen, setIsUserModalOpen] = useState(false);
     const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
     const [editingItem, setEditingItem] = useState<any>(null);
+    // Password Change State
+    const [isPwdModalOpen, setIsPwdModalOpen] = useState(false);
+    const [pwdForm, setPwdForm] = useState({ old: '', new: '', confirm: '' });
+    // Alert Dialog State
+    const [alertState, setAlertState] = useState<{ isOpen: boolean; title: string; message: string; type: 'success' | 'error' | 'confirm'; onConfirm?: () => void }>({ isOpen: false, title: '', message: '', type: 'success' });
 
     // Forms
     const [catForm, setCatForm] = useState<Partial<Category>>({ name: '', description: '', allowedUsers: ['PUBLIC'], allowedGroups: [] });
@@ -115,8 +120,17 @@ export default function MainApp() {
         setModal(false); setEditingItem(null); reset();
     };
 
-    const handleDelete = async (colName: string, id: string) => {
-        if (confirm('確定刪除？')) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', colName, id));
+    const handleDelete = (colName: string, id: string) => {
+        setAlertState({
+            isOpen: true,
+            title: '確認刪除',
+            message: '確定要刪除此項目嗎？此動作無法復原。',
+            type: 'confirm',
+            onConfirm: async () => {
+                await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', colName, id));
+                setAlertState(prev => ({ ...prev, isOpen: false }));
+            }
+        });
     };
 
     const canSee = (item: any) => {
@@ -130,6 +144,25 @@ export default function MainApp() {
         const newMode = !darkMode;
         setDarkMode(newMode);
         localStorage.setItem('nook-theme', newMode ? 'dark' : 'light');
+    };
+
+    const handleChangePassword = async () => {
+        try {
+            if (!currentUser) return;
+            if (pwdForm.old !== currentUser.password) return setAlertState({ isOpen: true, title: '驗證錯誤', message: '舊密碼不正確', type: 'error' });
+            if (pwdForm.new !== pwdForm.confirm) return setAlertState({ isOpen: true, title: '驗證錯誤', message: '新密碼與確認密碼不符', type: 'error' });
+            if (!pwdForm.new) return setAlertState({ isOpen: true, title: '驗證錯誤', message: '密碼不能為空', type: 'error' });
+            setLoading(true);
+            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', currentUser.id), { password: pwdForm.new });
+            setCurrentUser({ ...currentUser, password: pwdForm.new });
+            setAlertState({ isOpen: true, title: '修改成功', message: '密碼修改成功', type: 'success' });
+        } catch (e) {
+            console.error(e); setAlertState({ isOpen: true, title: '系統錯誤', message: '修改失敗', type: 'error' });
+        } finally {
+            setPwdForm({ old: '', new: '', confirm: '' });
+            setIsPwdModalOpen(false);
+            setLoading(false);
+        }
     };
 
     if (!currentUser) return <LayoutWrapper darkMode={darkMode} toggleDarkMode={toggleDarkMode}><LoginScreen onLogin={handleLogin} loading={loading} /></LayoutWrapper>;
@@ -153,7 +186,8 @@ export default function MainApp() {
                         <NavButton active={activeTab === 'admin-users'} onClick={() => setActiveTab('admin-users')} icon={UserIcon} label="人員名冊" />
                     </>}
                 </nav>
-                <button onClick={() => setCurrentUser(null)} className="mt-auto flex items-center gap-3 p-3 rounded-2xl hover:bg-red-100 text-red-500 font-bold"><LogOut size={20} /> 登出</button>
+                <button onClick={() => setIsPwdModalOpen(true)} className="mt-auto flex items-center gap-3 p-3 rounded-2xl hover:bg-white dark:hover:bg-gray-700 text-[#7f7a6d] dark:text-gray-400 font-bold"><Key size={20} /> 變更密碼</button>
+                <button onClick={() => setCurrentUser(null)} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-red-100 text-red-500 font-bold"><LogOut size={20} /> 登出</button>
             </div>
 
             {/* Main Content */}
@@ -303,6 +337,38 @@ export default function MainApp() {
                     <div><label className="text-sm font-bold">密碼</label><input value={userForm.password} onChange={e => setUserForm({ ...userForm, password: e.target.value })} className="input-field" /></div>
                     <div><label className="text-sm font-bold">角色</label><select value={userForm.role} onChange={e => setUserForm({ ...userForm, role: e.target.value as Role })} className="input-field"><option value="user">User</option><option value="admin">Admin</option></select></div>
                     <button onClick={() => handleSave('users', userForm, setIsUserModalOpen, () => { })} className="action-btn">儲存</button>
+                </div>
+            </Modal>
+
+            {/* Alert Dialog */}
+            <Modal isOpen={alertState.isOpen} onClose={() => setAlertState(prev => ({ ...prev, isOpen: false }))} title={alertState.title}>
+                <div className="flex flex-col items-center gap-4 p-4">
+                    {alertState.type === 'error' && <div className="w-16 h-16 bg-red-100 text-red-500 rounded-full flex items-center justify-center"><AlertCircle size={32} /></div>}
+                    {alertState.type === 'success' && <div className="w-16 h-16 bg-green-100 text-green-500 rounded-full flex items-center justify-center"><CheckCircle size={32} /></div>}
+                    {alertState.type === 'confirm' && <div className="w-16 h-16 bg-yellow-100 text-yellow-600 rounded-full flex items-center justify-center"><AlertCircle size={32} /></div>}
+
+                    <p className="text-center text-gray-600 dark:text-gray-300 font-medium">{alertState.message}</p>
+
+                    <div className="flex gap-3 mt-2 w-full justify-center">
+                        {alertState.type === 'confirm' ? (
+                            <>
+                                <button onClick={() => setAlertState(prev => ({ ...prev, isOpen: false }))} className="px-5 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold transition">取消</button>
+                                <button onClick={() => alertState.onConfirm && alertState.onConfirm()} className="px-5 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white font-bold transition shadow-lg shadow-red-200">確認刪除</button>
+                            </>
+                        ) : (
+                            <button onClick={() => setAlertState(prev => ({ ...prev, isOpen: false }))} className="px-8 py-2.5 rounded-xl bg-[#68c9bc] hover:bg-[#5ab8ac] text-white font-bold transition shadow-lg shadow-teal-100">確定</button>
+                        )}
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Modal: Change Password */}
+            <Modal isOpen={isPwdModalOpen} onClose={() => setIsPwdModalOpen(false)} title="變更密碼">
+                <div className="space-y-4">
+                    <div><label className="text-sm font-bold block mb-1">舊密碼</label><input type="password" value={pwdForm.old} onChange={e => setPwdForm({ ...pwdForm, old: e.target.value })} className="input-field" /></div>
+                    <div><label className="text-sm font-bold block mb-1">新密碼</label><input type="password" value={pwdForm.new} onChange={e => setPwdForm({ ...pwdForm, new: e.target.value })} className="input-field" /></div>
+                    <div><label className="text-sm font-bold block mb-1">確認新密碼</label><input type="password" value={pwdForm.confirm} onChange={e => setPwdForm({ ...pwdForm, confirm: e.target.value })} className="input-field" /></div>
+                    <button onClick={handleChangePassword} className="action-btn"><Save className="inline mr-2" size={18} /> 確認修改</button>
                 </div>
             </Modal>
 
