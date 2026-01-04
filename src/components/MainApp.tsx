@@ -55,6 +55,7 @@ export default function MainApp() {
     const [toolForm, setToolForm] = useState<Partial<Tool>>({ name: '', categoryId: '', type: 'code', code: '', url: '', allowedUsers: ['PUBLIC'], allowedGroups: [] });
     const [userForm, setUserForm] = useState<Partial<User>>({ username: '', password: '', role: 'user' });
     const [groupForm, setGroupForm] = useState<Partial<Group>>({ name: '', memberIds: [] });
+    const [toolFormErrors, setToolFormErrors] = useState<{ name?: string, categoryId?: string }>({});
 
     const currentUserGroupIds = useMemo(() => {
         if (!currentUser || !allGroups) return [];
@@ -68,7 +69,7 @@ export default function MainApp() {
                 await signInAnonymously(auth);
                 const usersRef = collection(db, 'artifacts', appId, 'public', 'data', 'users');
                 const snap = await getDocs(usersRef);
-                if (snap.empty) await addDoc(usersRef, { username: 'admin', password: 'admin', role: 'admin', createdAt: serverTimestamp() });
+                if (snap.empty) await addDoc(usersRef, { username: 'admin', password: 'admin', description: '超級管理員', role: 'admin', createdAt: serverTimestamp() });
             } catch (e) { console.error(e); }
             setLoading(false);
         };
@@ -118,6 +119,24 @@ export default function MainApp() {
         if (editingItem) await updateDoc(doc(colRef, editingItem.id), data);
         else await addDoc(colRef, { ...data, createdAt: serverTimestamp() });
         setModal(false); setEditingItem(null); reset();
+    };
+
+    const handleToolSave = () => {
+        const errors: { name?: string; categoryId?: string } = {};
+        if (!toolForm.name?.trim()) {
+            errors.name = '工具名稱為必填項目';
+        }
+        if (!toolForm.categoryId) {
+            errors.categoryId = '請選擇分類';
+        }
+
+        if (Object.keys(errors).length > 0) {
+            setToolFormErrors(errors);
+            return;
+        }
+
+        setToolFormErrors({});
+        handleSave('tools', toolForm, setIsToolModalOpen, () => setToolForm({ name: '', categoryId: '', type: 'code', code: '', url: '', allowedUsers: ['PUBLIC'], allowedGroups: [] }));
     };
 
     const handleDelete = (colName: string, id: string) => {
@@ -241,10 +260,10 @@ export default function MainApp() {
                 {/* Admin Views */}
                 {activeTab === 'admin-users' && (
                     <AdminSpreadsheet<User> title="人員帳號" icon={UserIcon} data={allUsers}
-                        onAdd={() => { setEditingItem(null); setUserForm({ username: '', password: '', role: 'user' }); setIsUserModalOpen(true); }}
+                        onAdd={() => { setEditingItem(null); setUserForm({ username: '', password: '', description: '', role: 'user' }); setIsUserModalOpen(true); }}
                         onEdit={i => { setEditingItem(i); setUserForm(i); setIsUserModalOpen(true); }}
                         onDelete={id => handleDelete('users', id)}
-                        columns={[{ label: '帳號', key: 'username' }, { label: '密碼', key: 'password' }, { label: '角色', key: 'role' }]}
+                        columns={[{ label: '帳號', key: 'username' }, { label: '密碼', key: 'password' }, { label: '描述', key: 'description' }, { label: '角色', key: 'role' }]}
                     />
                 )}
 
@@ -288,8 +307,14 @@ export default function MainApp() {
                                 setEditingItem(null);
                                 setToolForm({ name: '', categoryId: categories[0]?.id || '', type: 'code', code: '', url: '', allowedUsers: ['PUBLIC'], allowedGroups: [] });
                                 setIsToolModalOpen(true);
+                                setToolFormErrors({});
                             }}
-                            onEdit={(item) => { setEditingItem(item); setToolForm(item); setIsToolModalOpen(true); }}
+                            onEdit={(item) => {
+                                setEditingItem(item);
+                                setToolForm(item);
+                                setIsToolModalOpen(true);
+                                setToolFormErrors({});
+                            }}
                             onDelete={(id) => handleDelete('tools', id)}
                             columns={[
                                 { label: '工具名稱', key: 'name' },
@@ -356,6 +381,7 @@ export default function MainApp() {
                 <div className="space-y-4">
                     <div><label className="text-sm font-bold">帳號</label><input value={userForm.username} onChange={e => setUserForm({ ...userForm, username: e.target.value })} className="input-field" /></div>
                     <div><label className="text-sm font-bold">密碼</label><input value={userForm.password} onChange={e => setUserForm({ ...userForm, password: e.target.value })} className="input-field" /></div>
+                    <div><label className="text-sm font-bold">描述</label><textarea value={userForm.description} onChange={e => setUserForm({ ...userForm, description: e.target.value })} className="input-field h-24" /></div>
                     <div><label className="text-sm font-bold">角色</label><select value={userForm.role} onChange={e => setUserForm({ ...userForm, role: e.target.value as Role })} className="input-field"><option value="user">User</option><option value="admin">Admin</option></select></div>
                     <button onClick={() => handleSave('users', userForm, setIsUserModalOpen, () => { })} className="action-btn">儲存</button>
                 </div>
@@ -413,17 +439,19 @@ export default function MainApp() {
                 <div className="space-y-4">
                     {/* 工具名稱 */}
                     <div>
-                        <label className="text-sm font-bold block mb-1">工具名稱</label>
+                        <label className="text-sm font-bold block mb-1">工具名稱*</label>
                         <input value={toolForm.name} onChange={e => setToolForm({ ...toolForm, name: e.target.value })} className="input-field" placeholder="例如：匯率計算機" />
+                        {toolFormErrors.name && <p className="text-red-500 text-xs mt-1">{toolFormErrors.name}</p>}
                     </div>
 
                     {/* 分類選擇 */}
                     <div>
-                        <label className="text-sm font-bold block mb-1">分類</label>
+                        <label className="text-sm font-bold block mb-1">分類*</label>
                         <select value={toolForm.categoryId} onChange={e => setToolForm({ ...toolForm, categoryId: e.target.value })} className="input-field">
                             <option value="">請選擇分類</option>
                             {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                         </select>
+                        {toolFormErrors.categoryId && <p className="text-red-500 text-xs mt-1">{toolFormErrors.categoryId}</p>}
                     </div>
 
                     {/* 權限設定 */}
@@ -497,7 +525,7 @@ export default function MainApp() {
                         </div>
                     )}
 
-                    <button onClick={() => handleSave('tools', toolForm, setIsToolModalOpen, () => setToolForm({ name: '', categoryId: '', type: 'code', code: '', url: '', allowedUsers: ['PUBLIC'], allowedGroups: [] }))} className="action-btn">
+                    <button onClick={handleToolSave} className="action-btn">
                         <Save className="inline mr-2" size={18} /> {editingItem ? '儲存變更' : '上架工具'}
                     </button>
                 </div>

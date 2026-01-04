@@ -11,6 +11,7 @@ export interface BaseEntity {
 export interface User extends BaseEntity {
   username: string;
   password?: string;
+  description?: string;
   role: Role;
 }
 
