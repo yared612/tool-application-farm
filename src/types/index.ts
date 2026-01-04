@@ -11,6 +11,7 @@ export interface BaseEntity {
 export interface User extends BaseEntity {
   username: string;
   password?: string;
+  description?: string;
   role: Role;
 }
 
@@ -31,7 +32,7 @@ export interface Tool extends BaseEntity {
   categoryId: string;
   allowedUsers: string[];
   allowedGroups: string[];
-  type?: 'code' | 'url';
+  type?: 'code' | 'url' | 'url_new_tab';
   code?: string;
   url?: string;
 }

@@ -59,7 +59,7 @@ export const PermissionSelector: React.FC<PermissionSelectorProps> = ({
                 </div>
                 <div className="flex flex-col">
                     <span className="font-bold text-sm flex items-center"><Globe size={14} className="mr-1" /> 公開</span>
-                    <span className="text-xs opacity-70">所有島民皆可看到此項目</span>
+                    <span className="text-xs opacity-70">所有人員皆可看到此項目</span>
                 </div>
             </div>
 

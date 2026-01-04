@@ -1,7 +1,7 @@
 'use client';
 import { signInAnonymously } from 'firebase/auth';
 import { addDoc, collection, deleteDoc, doc, getDocs, onSnapshot, orderBy, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
-import { ChevronDown, ChevronRight, Code, Globe, Grid, Layout, Leaf, LogOut, Save, User as UserIcon, Users } from 'lucide-react';
+import { AlertCircle, CheckCircle, ChevronDown, ChevronRight, Code, Globe, Grid, Key, Layout, Leaf, LogOut, Save, User as UserIcon, Users } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 // Imports
@@ -44,12 +44,18 @@ export default function MainApp() {
     const [isUserModalOpen, setIsUserModalOpen] = useState(false);
     const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
     const [editingItem, setEditingItem] = useState<any>(null);
+    // Password Change State
+    const [isPwdModalOpen, setIsPwdModalOpen] = useState(false);
+    const [pwdForm, setPwdForm] = useState({ old: '', new: '', confirm: '' });
+    // Alert Dialog State
+    const [alertState, setAlertState] = useState<{ isOpen: boolean; title: string; message: string; type: 'success' | 'error' | 'confirm'; onConfirm?: () => void }>({ isOpen: false, title: '', message: '', type: 'success' });
 
     // Forms
     const [catForm, setCatForm] = useState<Partial<Category>>({ name: '', description: '', allowedUsers: ['PUBLIC'], allowedGroups: [] });
     const [toolForm, setToolForm] = useState<Partial<Tool>>({ name: '', categoryId: '', type: 'code', code: '', url: '', allowedUsers: ['PUBLIC'], allowedGroups: [] });
     const [userForm, setUserForm] = useState<Partial<User>>({ username: '', password: '', role: 'user' });
     const [groupForm, setGroupForm] = useState<Partial<Group>>({ name: '', memberIds: [] });
+    const [toolFormErrors, setToolFormErrors] = useState<{ name?: string, categoryId?: string }>({});
 
     const currentUserGroupIds = useMemo(() => {
         if (!currentUser || !allGroups) return [];
@@ -63,7 +69,7 @@ export default function MainApp() {
                 await signInAnonymously(auth);
                 const usersRef = collection(db, 'artifacts', appId, 'public', 'data', 'users');
                 const snap = await getDocs(usersRef);
-                if (snap.empty) await addDoc(usersRef, { username: 'admin', password: 'admin', role: 'admin', createdAt: serverTimestamp() });
+                if (snap.empty) await addDoc(usersRef, { username: 'admin', password: 'admin', description: '超級管理員', role: 'admin', createdAt: serverTimestamp() });
             } catch (e) { console.error(e); }
             setLoading(false);
         };
@@ -115,8 +121,35 @@ export default function MainApp() {
         setModal(false); setEditingItem(null); reset();
     };
 
-    const handleDelete = async (colName: string, id: string) => {
-        if (confirm('確定刪除？')) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', colName, id));
+    const handleToolSave = () => {
+        const errors: { name?: string; categoryId?: string } = {};
+        if (!toolForm.name?.trim()) {
+            errors.name = '工具名稱為必填項目';
+        }
+        if (!toolForm.categoryId) {
+            errors.categoryId = '請選擇分類';
+        }
+
+        if (Object.keys(errors).length > 0) {
+            setToolFormErrors(errors);
+            return;
+        }
+
+        setToolFormErrors({});
+        handleSave('tools', toolForm, setIsToolModalOpen, () => setToolForm({ name: '', categoryId: '', type: 'code', code: '', url: '', allowedUsers: ['PUBLIC'], allowedGroups: [] }));
+    };
+
+    const handleDelete = (colName: string, id: string) => {
+        setAlertState({
+            isOpen: true,
+            title: '確認刪除',
+            message: '確定要刪除此項目嗎？此動作無法復原。',
+            type: 'confirm',
+            onConfirm: async () => {
+                await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', colName, id));
+                setAlertState(prev => ({ ...prev, isOpen: false }));
+            }
+        });
     };
 
     const canSee = (item: any) => {
@@ -130,6 +163,35 @@ export default function MainApp() {
         const newMode = !darkMode;
         setDarkMode(newMode);
         localStorage.setItem('nook-theme', newMode ? 'dark' : 'light');
+    };
+
+    const handleChangePassword = async () => {
+        try {
+            if (!currentUser) return;
+            if (pwdForm.old !== currentUser.password) return setAlertState({ isOpen: true, title: '驗證錯誤', message: '舊密碼不正確', type: 'error' });
+            if (pwdForm.new !== pwdForm.confirm) return setAlertState({ isOpen: true, title: '驗證錯誤', message: '新密碼與確認密碼不符', type: 'error' });
+            if (!pwdForm.new) return setAlertState({ isOpen: true, title: '驗證錯誤', message: '密碼不能為空', type: 'error' });
+            setLoading(true);
+            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', currentUser.id), { password: pwdForm.new });
+            setCurrentUser({ ...currentUser, password: pwdForm.new });
+            setAlertState({ isOpen: true, title: '修改成功', message: '密碼修改成功', type: 'success' });
+        } catch (e) {
+            console.error(e); setAlertState({ isOpen: true, title: '系統錯誤', message: '修改失敗', type: 'error' });
+        } finally {
+            setPwdForm({ old: '', new: '', confirm: '' });
+            setIsPwdModalOpen(false);
+            setLoading(false);
+        }
+    };
+
+    const handleToolClick = (tool: Tool) => {
+        if (tool.type === 'url_new_tab') {
+            if (tool.url) {
+                window.open(tool.url, '_blank', 'noopener,noreferrer');
+            }
+        } else {
+            setSelectedTool(tool);
+        }
     };
 
     if (!currentUser) return <LayoutWrapper darkMode={darkMode} toggleDarkMode={toggleDarkMode}><LoginScreen onLogin={handleLogin} loading={loading} /></LayoutWrapper>;
@@ -153,7 +215,8 @@ export default function MainApp() {
                         <NavButton active={activeTab === 'admin-users'} onClick={() => setActiveTab('admin-users')} icon={UserIcon} label="人員名冊" />
                     </>}
                 </nav>
-                <button onClick={() => setCurrentUser(null)} className="mt-auto flex items-center gap-3 p-3 rounded-2xl hover:bg-red-100 text-red-500 font-bold"><LogOut size={20} /> 登出</button>
+                <button onClick={() => setIsPwdModalOpen(true)} className="mt-auto flex items-center gap-3 p-3 rounded-2xl hover:bg-white dark:hover:bg-gray-700 text-[#7f7a6d] dark:text-gray-400 font-bold"><Key size={20} /> 變更密碼</button>
+                <button onClick={() => setCurrentUser(null)} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-red-100 text-red-500 font-bold"><LogOut size={20} /> 登出</button>
             </div>
 
             {/* Main Content */}
@@ -177,8 +240,12 @@ export default function MainApp() {
                                     {isExp && (
                                         <div className="p-4 pt-0 grid grid-cols-2 md:grid-cols-4 gap-4">
                                             {visibleTools.map(t => (
-                                                <div key={t.id} onClick={() => setSelectedTool(t)} className="bg-white dark:bg-[#1a202c] p-4 rounded-xl shadow cursor-pointer hover:scale-105 transition flex flex-col items-center">
-                                                    <div className="w-12 h-12 bg-green-50 rounded-lg flex items-center justify-center mb-2"><Code className="text-[#68c9bc]" /></div>
+                                                <div key={t.id} onClick={() => handleToolClick(t)} className="bg-white dark:bg-[#1a202c] p-4 rounded-xl shadow cursor-pointer hover:scale-105 transition flex flex-col items-center">
+                                                    <div className="w-12 h-12 bg-green-50 rounded-lg flex items-center justify-center mb-2">
+                                                        {t.type === 'url' || t.type === 'url_new_tab'
+                                                            ? <Globe className="text-[#68c9bc]" />
+                                                            : <Code className="text-[#68c9bc]" />}
+                                                    </div>
                                                     <span className="font-bold text-sm dark:text-gray-200">{t.name}</span>
                                                 </div>
                                             ))}
@@ -193,10 +260,10 @@ export default function MainApp() {
                 {/* Admin Views */}
                 {activeTab === 'admin-users' && (
                     <AdminSpreadsheet<User> title="人員帳號" icon={UserIcon} data={allUsers}
-                        onAdd={() => { setEditingItem(null); setUserForm({ username: '', password: '', role: 'user' }); setIsUserModalOpen(true); }}
+                        onAdd={() => { setEditingItem(null); setUserForm({ username: '', password: '', description: '', role: 'user' }); setIsUserModalOpen(true); }}
                         onEdit={i => { setEditingItem(i); setUserForm(i); setIsUserModalOpen(true); }}
                         onDelete={id => handleDelete('users', id)}
-                        columns={[{ label: '帳號', key: 'username' }, { label: '密碼', key: 'password' }, { label: '角色', key: 'role' }]}
+                        columns={[{ label: '帳號', key: 'username' }, { label: '密碼', key: 'password' }, { label: '描述', key: 'description' }, { label: '角色', key: 'role' }]}
                     />
                 )}
 
@@ -240,17 +307,30 @@ export default function MainApp() {
                                 setEditingItem(null);
                                 setToolForm({ name: '', categoryId: categories[0]?.id || '', type: 'code', code: '', url: '', allowedUsers: ['PUBLIC'], allowedGroups: [] });
                                 setIsToolModalOpen(true);
+                                setToolFormErrors({});
                             }}
-                            onEdit={(item) => { setEditingItem(item); setToolForm(item); setIsToolModalOpen(true); }}
+                            onEdit={(item) => {
+                                setEditingItem(item);
+                                setToolForm(item);
+                                setIsToolModalOpen(true);
+                                setToolFormErrors({});
+                            }}
                             onDelete={(id) => handleDelete('tools', id)}
                             columns={[
                                 { label: '工具名稱', key: 'name' },
                                 {
                                     label: '類型',
                                     key: 'type',
-                                    render: (t) => t === 'url' ?
-                                        <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-bold flex w-fit items-center gap-1"><Globe size={12} /> 網頁鑲嵌</span> :
-                                        <span className="bg-gray-100 text-gray-700 px-2 py-0.5 rounded text-xs font-bold flex w-fit items-center gap-1"><Code size={12} /> 自訂代碼</span>
+                                    render: (t) => {
+                                        switch (t) {
+                                            case 'url':
+                                                return <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-bold flex w-fit items-center gap-1"><Globe size={12} /> 網頁鑲嵌</span>;
+                                            case 'url_new_tab':
+                                                return <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-xs font-bold flex w-fit items-center gap-1"><Globe size={12} /> 新分頁開啟</span>;
+                                            default:
+                                                return <span className="bg-gray-100 text-gray-700 px-2 py-0.5 rounded text-xs font-bold flex w-fit items-center gap-1"><Code size={12} /> 自訂代碼</span>;
+                                        }
+                                    }
                                 },
                                 { label: '分類', key: 'categoryId', render: (id) => categories.find(c => c.id === id)?.name || <span className="text-red-400">未分類</span> },
                                 // ... (權限欄位保持不變)
@@ -301,8 +381,41 @@ export default function MainApp() {
                 <div className="space-y-4">
                     <div><label className="text-sm font-bold">帳號</label><input value={userForm.username} onChange={e => setUserForm({ ...userForm, username: e.target.value })} className="input-field" /></div>
                     <div><label className="text-sm font-bold">密碼</label><input value={userForm.password} onChange={e => setUserForm({ ...userForm, password: e.target.value })} className="input-field" /></div>
+                    <div><label className="text-sm font-bold">描述</label><textarea value={userForm.description} onChange={e => setUserForm({ ...userForm, description: e.target.value })} className="input-field h-24" /></div>
                     <div><label className="text-sm font-bold">角色</label><select value={userForm.role} onChange={e => setUserForm({ ...userForm, role: e.target.value as Role })} className="input-field"><option value="user">User</option><option value="admin">Admin</option></select></div>
                     <button onClick={() => handleSave('users', userForm, setIsUserModalOpen, () => { })} className="action-btn">儲存</button>
+                </div>
+            </Modal>
+
+            {/* Alert Dialog */}
+            <Modal isOpen={alertState.isOpen} onClose={() => setAlertState(prev => ({ ...prev, isOpen: false }))} title={alertState.title}>
+                <div className="flex flex-col items-center gap-4 p-4">
+                    {alertState.type === 'error' && <div className="w-16 h-16 bg-red-100 text-red-500 rounded-full flex items-center justify-center"><AlertCircle size={32} /></div>}
+                    {alertState.type === 'success' && <div className="w-16 h-16 bg-green-100 text-green-500 rounded-full flex items-center justify-center"><CheckCircle size={32} /></div>}
+                    {alertState.type === 'confirm' && <div className="w-16 h-16 bg-yellow-100 text-yellow-600 rounded-full flex items-center justify-center"><AlertCircle size={32} /></div>}
+
+                    <p className="text-center text-gray-600 dark:text-gray-300 font-medium">{alertState.message}</p>
+
+                    <div className="flex gap-3 mt-2 w-full justify-center">
+                        {alertState.type === 'confirm' ? (
+                            <>
+                                <button onClick={() => setAlertState(prev => ({ ...prev, isOpen: false }))} className="px-5 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold transition">取消</button>
+                                <button onClick={() => alertState.onConfirm && alertState.onConfirm()} className="px-5 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white font-bold transition shadow-lg shadow-red-200">確認刪除</button>
+                            </>
+                        ) : (
+                            <button onClick={() => setAlertState(prev => ({ ...prev, isOpen: false }))} className="px-8 py-2.5 rounded-xl bg-[#68c9bc] hover:bg-[#5ab8ac] text-white font-bold transition shadow-lg shadow-teal-100">確定</button>
+                        )}
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Modal: Change Password */}
+            <Modal isOpen={isPwdModalOpen} onClose={() => setIsPwdModalOpen(false)} title="變更密碼">
+                <div className="space-y-4">
+                    <div><label className="text-sm font-bold block mb-1">舊密碼</label><input type="password" value={pwdForm.old} onChange={e => setPwdForm({ ...pwdForm, old: e.target.value })} className="input-field" /></div>
+                    <div><label className="text-sm font-bold block mb-1">新密碼</label><input type="password" value={pwdForm.new} onChange={e => setPwdForm({ ...pwdForm, new: e.target.value })} className="input-field" /></div>
+                    <div><label className="text-sm font-bold block mb-1">確認新密碼</label><input type="password" value={pwdForm.confirm} onChange={e => setPwdForm({ ...pwdForm, confirm: e.target.value })} className="input-field" /></div>
+                    <button onClick={handleChangePassword} className="action-btn"><Save className="inline mr-2" size={18} /> 確認修改</button>
                 </div>
             </Modal>
 
@@ -314,8 +427,8 @@ export default function MainApp() {
                     <PermissionSelector
                         users={allUsers} groups={allGroups}
                         selectedUsers={catForm.allowedUsers || []} selectedGroups={catForm.allowedGroups || []}
-                        onUserChange={ids => setCatForm({ ...catForm, allowedUsers: ids })}
-                        onGroupChange={ids => setCatForm({ ...catForm, allowedGroups: ids })}
+                        onUserChange={ids => setCatForm(prev => ({ ...prev, allowedUsers: ids }))}
+                        onGroupChange={ids => setCatForm(prev => ({ ...prev, allowedGroups: ids }))}
                     />
                     <button onClick={() => handleSave('categories', catForm, setIsCatModalOpen, () => setCatForm({ name: '', description: '', allowedUsers: ['PUBLIC'], allowedGroups: [] }))} className="action-btn"><Save className="inline mr-2" size={18} /> 儲存</button>
                 </div>
@@ -326,25 +439,27 @@ export default function MainApp() {
                 <div className="space-y-4">
                     {/* 工具名稱 */}
                     <div>
-                        <label className="text-sm font-bold block mb-1">工具名稱</label>
+                        <label className="text-sm font-bold block mb-1">工具名稱*</label>
                         <input value={toolForm.name} onChange={e => setToolForm({ ...toolForm, name: e.target.value })} className="input-field" placeholder="例如：匯率計算機" />
+                        {toolFormErrors.name && <p className="text-red-500 text-xs mt-1">{toolFormErrors.name}</p>}
                     </div>
 
                     {/* 分類選擇 */}
                     <div>
-                        <label className="text-sm font-bold block mb-1">分類</label>
+                        <label className="text-sm font-bold block mb-1">分類*</label>
                         <select value={toolForm.categoryId} onChange={e => setToolForm({ ...toolForm, categoryId: e.target.value })} className="input-field">
                             <option value="">請選擇分類</option>
                             {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                         </select>
+                        {toolFormErrors.categoryId && <p className="text-red-500 text-xs mt-1">{toolFormErrors.categoryId}</p>}
                     </div>
 
                     {/* 權限設定 */}
                     <PermissionSelector
                         users={allUsers} groups={allGroups}
                         selectedUsers={toolForm.allowedUsers || []} selectedGroups={toolForm.allowedGroups || []}
-                        onUserChange={ids => setToolForm({ ...toolForm, allowedUsers: ids })}
-                        onGroupChange={ids => setToolForm({ ...toolForm, allowedGroups: ids })}
+                        onUserChange={ids => setToolForm(prev => ({ ...prev, allowedUsers: ids }))}
+                        onGroupChange={ids => setToolForm(prev => ({ ...prev, allowedGroups: ids }))}
                     />
 
                     {/* --- 新增：工具類型切換 --- */}
@@ -355,7 +470,7 @@ export default function MainApp() {
                                 <input
                                     type="radio"
                                     name="toolType"
-                                    checked={toolForm.type !== 'url'} // 預設或 'code' 都是這個
+                                    checked={toolForm.type === 'code'}
                                     onChange={() => setToolForm({ ...toolForm, type: 'code' })}
                                     className="w-4 h-4 text-[#68c9bc] focus:ring-[#68c9bc]"
                                 />
@@ -369,13 +484,23 @@ export default function MainApp() {
                                     onChange={() => setToolForm({ ...toolForm, type: 'url' })}
                                     className="w-4 h-4 text-[#68c9bc] focus:ring-[#68c9bc]"
                                 />
-                                <span className="font-bold flex items-center gap-1"><Globe size={16} /> 網頁連結 (URL)</span>
+                                <span className="font-bold flex items-center gap-1"><Globe size={16} /> 網頁鑲嵌</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                    type="radio"
+                                    name="toolType"
+                                    checked={toolForm.type === 'url_new_tab'}
+                                    onChange={() => setToolForm({ ...toolForm, type: 'url_new_tab' })}
+                                    className="w-4 h-4 text-[#68c9bc] focus:ring-[#68c9bc]"
+                                />
+                                <span className="font-bold flex items-center gap-1"><Globe size={16} /> 新分頁</span>
                             </label>
                         </div>
                     </div>
 
                     {/* 根據類型顯示對應輸入框 */}
-                    {toolForm.type === 'url' ? (
+                    {toolForm.type === 'url' || toolForm.type === 'url_new_tab' ? (
                         <div className="animate-in fade-in slide-in-from-top-2">
                             <label className="text-sm font-bold block mb-1">目標網址 (URL)</label>
                             <input
@@ -385,7 +510,8 @@ export default function MainApp() {
                                 className="input-field"
                                 placeholder="https://example.com/my-tool"
                             />
-                            <p className="text-xs text-gray-400 mt-1">請確保該網站允許被 Iframe 嵌入 (無 X-Frame-Options 限制)。</p>
+                            {toolForm.type === 'url' && <p className="text-xs text-gray-400 mt-1">請確保該網站允許被 Iframe 嵌入 (無 X-Frame-Options 限制)。</p>}
+                            {toolForm.type === 'url_new_tab' && <p className="text-xs text-gray-400 mt-1">點擊工具將會直接開啟一個新的分頁前往此URL。</p>}
                         </div>
                     ) : (
                         <div className="animate-in fade-in slide-in-from-top-2">
@@ -399,7 +525,7 @@ export default function MainApp() {
                         </div>
                     )}
 
-                    <button onClick={() => handleSave('tools', toolForm, setIsToolModalOpen, () => setToolForm({ name: '', categoryId: '', type: 'code', code: '', url: '', allowedUsers: ['PUBLIC'], allowedGroups: [] }))} className="action-btn">
+                    <button onClick={handleToolSave} className="action-btn">
                         <Save className="inline mr-2" size={18} /> {editingItem ? '儲存變更' : '上架工具'}
                     </button>
                 </div>
