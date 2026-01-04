@@ -165,6 +165,16 @@ export default function MainApp() {
         }
     };
 
+    const handleToolClick = (tool: Tool) => {
+        if (tool.type === 'url_new_tab') {
+            if (tool.url) {
+                window.open(tool.url, '_blank', 'noopener,noreferrer');
+            }
+        } else {
+            setSelectedTool(tool);
+        }
+    };
+
     if (!currentUser) return <LayoutWrapper darkMode={darkMode} toggleDarkMode={toggleDarkMode}><LoginScreen onLogin={handleLogin} loading={loading} /></LayoutWrapper>;
     if (selectedTool) return <LayoutWrapper darkMode={darkMode} toggleDarkMode={toggleDarkMode}><ToolRenderer tool={selectedTool} onBack={() => setSelectedTool(null)} /></LayoutWrapper>;
 
@@ -211,8 +221,12 @@ export default function MainApp() {
                                     {isExp && (
                                         <div className="p-4 pt-0 grid grid-cols-2 md:grid-cols-4 gap-4">
                                             {visibleTools.map(t => (
-                                                <div key={t.id} onClick={() => setSelectedTool(t)} className="bg-white dark:bg-[#1a202c] p-4 rounded-xl shadow cursor-pointer hover:scale-105 transition flex flex-col items-center">
-                                                    <div className="w-12 h-12 bg-green-50 rounded-lg flex items-center justify-center mb-2"><Code className="text-[#68c9bc]" /></div>
+                                                <div key={t.id} onClick={() => handleToolClick(t)} className="bg-white dark:bg-[#1a202c] p-4 rounded-xl shadow cursor-pointer hover:scale-105 transition flex flex-col items-center">
+                                                    <div className="w-12 h-12 bg-green-50 rounded-lg flex items-center justify-center mb-2">
+                                                        {t.type === 'url' || t.type === 'url_new_tab'
+                                                            ? <Globe className="text-[#68c9bc]" />
+                                                            : <Code className="text-[#68c9bc]" />}
+                                                    </div>
                                                     <span className="font-bold text-sm dark:text-gray-200">{t.name}</span>
                                                 </div>
                                             ))}
@@ -282,9 +296,16 @@ export default function MainApp() {
                                 {
                                     label: '類型',
                                     key: 'type',
-                                    render: (t) => t === 'url' ?
-                                        <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-bold flex w-fit items-center gap-1"><Globe size={12} /> 網頁鑲嵌</span> :
-                                        <span className="bg-gray-100 text-gray-700 px-2 py-0.5 rounded text-xs font-bold flex w-fit items-center gap-1"><Code size={12} /> 自訂代碼</span>
+                                    render: (t) => {
+                                        switch (t) {
+                                            case 'url':
+                                                return <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-bold flex w-fit items-center gap-1"><Globe size={12} /> 網頁鑲嵌</span>;
+                                            case 'url_new_tab':
+                                                return <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-xs font-bold flex w-fit items-center gap-1"><Globe size={12} /> 新分頁開啟</span>;
+                                            default:
+                                                return <span className="bg-gray-100 text-gray-700 px-2 py-0.5 rounded text-xs font-bold flex w-fit items-center gap-1"><Code size={12} /> 自訂代碼</span>;
+                                        }
+                                    }
                                 },
                                 { label: '分類', key: 'categoryId', render: (id) => categories.find(c => c.id === id)?.name || <span className="text-red-400">未分類</span> },
                                 // ... (權限欄位保持不變)
@@ -380,8 +401,8 @@ export default function MainApp() {
                     <PermissionSelector
                         users={allUsers} groups={allGroups}
                         selectedUsers={catForm.allowedUsers || []} selectedGroups={catForm.allowedGroups || []}
-                        onUserChange={ids => setCatForm({ ...catForm, allowedUsers: ids })}
-                        onGroupChange={ids => setCatForm({ ...catForm, allowedGroups: ids })}
+                        onUserChange={ids => setCatForm(prev => ({ ...prev, allowedUsers: ids }))}
+                        onGroupChange={ids => setCatForm(prev => ({ ...prev, allowedGroups: ids }))}
                     />
                     <button onClick={() => handleSave('categories', catForm, setIsCatModalOpen, () => setCatForm({ name: '', description: '', allowedUsers: ['PUBLIC'], allowedGroups: [] }))} className="action-btn"><Save className="inline mr-2" size={18} /> 儲存</button>
                 </div>
@@ -409,8 +430,8 @@ export default function MainApp() {
                     <PermissionSelector
                         users={allUsers} groups={allGroups}
                         selectedUsers={toolForm.allowedUsers || []} selectedGroups={toolForm.allowedGroups || []}
-                        onUserChange={ids => setToolForm({ ...toolForm, allowedUsers: ids })}
-                        onGroupChange={ids => setToolForm({ ...toolForm, allowedGroups: ids })}
+                        onUserChange={ids => setToolForm(prev => ({ ...prev, allowedUsers: ids }))}
+                        onGroupChange={ids => setToolForm(prev => ({ ...prev, allowedGroups: ids }))}
                     />
 
                     {/* --- 新增：工具類型切換 --- */}
@@ -421,7 +442,7 @@ export default function MainApp() {
                                 <input
                                     type="radio"
                                     name="toolType"
-                                    checked={toolForm.type !== 'url'} // 預設或 'code' 都是這個
+                                    checked={toolForm.type === 'code'}
                                     onChange={() => setToolForm({ ...toolForm, type: 'code' })}
                                     className="w-4 h-4 text-[#68c9bc] focus:ring-[#68c9bc]"
                                 />
@@ -435,13 +456,23 @@ export default function MainApp() {
                                     onChange={() => setToolForm({ ...toolForm, type: 'url' })}
                                     className="w-4 h-4 text-[#68c9bc] focus:ring-[#68c9bc]"
                                 />
-                                <span className="font-bold flex items-center gap-1"><Globe size={16} /> 網頁連結 (URL)</span>
+                                <span className="font-bold flex items-center gap-1"><Globe size={16} /> 網頁鑲嵌</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                    type="radio"
+                                    name="toolType"
+                                    checked={toolForm.type === 'url_new_tab'}
+                                    onChange={() => setToolForm({ ...toolForm, type: 'url_new_tab' })}
+                                    className="w-4 h-4 text-[#68c9bc] focus:ring-[#68c9bc]"
+                                />
+                                <span className="font-bold flex items-center gap-1"><Globe size={16} /> 新分頁</span>
                             </label>
                         </div>
                     </div>
 
                     {/* 根據類型顯示對應輸入框 */}
-                    {toolForm.type === 'url' ? (
+                    {toolForm.type === 'url' || toolForm.type === 'url_new_tab' ? (
                         <div className="animate-in fade-in slide-in-from-top-2">
                             <label className="text-sm font-bold block mb-1">目標網址 (URL)</label>
                             <input
@@ -451,7 +482,8 @@ export default function MainApp() {
                                 className="input-field"
                                 placeholder="https://example.com/my-tool"
                             />
-                            <p className="text-xs text-gray-400 mt-1">請確保該網站允許被 Iframe 嵌入 (無 X-Frame-Options 限制)。</p>
+                            {toolForm.type === 'url' && <p className="text-xs text-gray-400 mt-1">請確保該網站允許被 Iframe 嵌入 (無 X-Frame-Options 限制)。</p>}
+                            {toolForm.type === 'url_new_tab' && <p className="text-xs text-gray-400 mt-1">點擊工具將會直接開啟一個新的分頁前往此URL。</p>}
                         </div>
                     ) : (
                         <div className="animate-in fade-in slide-in-from-top-2">

@@ -31,7 +31,7 @@ export interface Tool extends BaseEntity {
   categoryId: string;
   allowedUsers: string[];
   allowedGroups: string[];
-  type?: 'code' | 'url';
+  type?: 'code' | 'url' | 'url_new_tab';
   code?: string;
   url?: string;
 }
