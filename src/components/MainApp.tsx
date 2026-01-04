@@ -222,7 +222,7 @@ export default function MainApp() {
             {/* Main Content */}
             <div className="flex-1 flex flex-col h-full overflow-hidden p-4 md:p-8">
                 <h1 className="text-2xl md:text-3xl font-bold mb-6 text-[#5e5a52] dark:text-white">
-                    {activeTab === 'dashboard' ? 'Nook App Store' : '管理後台'}
+                    {activeTab === 'dashboard' ? 'App Store' : '管理後台'}
                 </h1>
 
                 {activeTab === 'dashboard' && (
