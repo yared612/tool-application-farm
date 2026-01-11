@@ -297,7 +297,7 @@ export default function MainApp() {
 
                 {/* Admin: Tools */}
                 {activeTab === 'admin-tools' && (
-                    <div className="h-full">
+                    <div className="h-full overflow-x-auto">
                         <AdminSpreadsheet<Tool>
                             title="程式碼倉庫"
                             icon={Code}
