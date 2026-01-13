@@ -72,11 +72,11 @@ export default function MainApp() {
     const sortedCategories = useMemo(() => {
         const baseOrder = categories.map(c => c.id);
         const currentOrder = categoryOrder.length > 0 ? categoryOrder : baseOrder;
-        
+
         const categoryMap = new Map(categories.map(c => [c.id, c]));
         const ordered = currentOrder.flatMap(id => categoryMap.get(id) ? [categoryMap.get(id)!] : []);
         const unordered = categories.filter(c => !currentOrder.includes(c.id));
-        
+
         return [...ordered, ...unordered];
     }, [categories, categoryOrder]);
 
@@ -99,6 +99,24 @@ export default function MainApp() {
 
     // Init
     useEffect(() => {
+        const session = localStorage.getItem('userSession');
+        if (session) {
+            try {
+                const { user, timestamp } = JSON.parse(session);
+                const isSessionValid = (Date.now() - timestamp) < 24 * 60 * 60 * 1000;
+                if (isSessionValid && user) {
+                    setCurrentUser(user);
+                    setLoading(false);
+                    return;
+                } else {
+                    localStorage.removeItem('userSession');
+                }
+            } catch (e) {
+                console.error("Failed to parse session", e);
+                localStorage.removeItem('userSession');
+            }
+        }
+
         const init = async () => {
             try {
                 await signInAnonymously(auth);
@@ -164,7 +182,7 @@ export default function MainApp() {
         }
     };
 
-    const handleLogin = async (u: string, p: string, err: any) => {
+    const handleLogin = async (u: string, p: string, remember: boolean, err: any) => {
         setLoading(true);
         const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'users'), where('username', '==', u), where('password', '==', p));
         const snap = await getDocs(q);
@@ -175,6 +193,14 @@ export default function MainApp() {
                 setLoading(false);
                 return;
             }
+
+            localStorage.setItem('userSession', JSON.stringify({ user, timestamp: Date.now() }));
+            if (remember) {
+                localStorage.setItem('rememberedUser', JSON.stringify({ username: u, password: p }));
+            } else {
+                localStorage.removeItem('rememberedUser');
+            }
+
             setCurrentUser(user);
             setActiveTab('dashboard');
         }
@@ -277,7 +303,7 @@ export default function MainApp() {
                 </div>
                 <nav className="flex-1 space-y-2">
                     <NavButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={Grid} label="App 商店" />
-                    { (currentUser.role === 'admin' || currentUser.role === 'powerUser') && <>
+                    {(currentUser.role === 'admin' || currentUser.role === 'powerUser') && <>
                         <div className="text-xs font-bold text-gray-400 mt-6 mb-2 px-4 uppercase">後台管理</div>
                         {currentUser.role === 'admin' &&
                             <>
@@ -290,7 +316,7 @@ export default function MainApp() {
                     </>}
                 </nav>
                 <button onClick={() => setIsPwdModalOpen(true)} className="mt-auto flex items-center gap-3 p-3 rounded-2xl hover:bg-white dark:hover:bg-gray-700 text-[#7f7a6d] dark:text-gray-400 font-bold"><Key size={20} /> 變更密碼</button>
-                <button onClick={() => setCurrentUser(null)} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-red-100 text-red-500 font-bold"><LogOut size={20} /> 登出</button>
+                <button onClick={() => { setCurrentUser(null); localStorage.removeItem('userSession'); }} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-red-100 text-red-500 font-bold"><LogOut size={20} /> 登出</button>
             </div>
 
             {/* Main Content */}
@@ -310,10 +336,10 @@ export default function MainApp() {
                                     <div onClick={() => setExpandedCats(p => p.includes(cat.id) ? p.filter(i => i !== cat.id) : [...p, cat.id])} className="p-4 flex justify-between items-center cursor-pointer">
                                         <div className="flex items-center gap-3"><Leaf size={18} className="text-[#68c9bc]" /> <span className="font-bold text-lg dark:text-white">{cat.name}</span></div>
                                         <div className="flex items-center gap-2">
-                                            <button onClick={e => { e.stopPropagation(); moveCategory(cat.id, 'up')}} disabled={idx === 0} className="p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed">
+                                            <button onClick={e => { e.stopPropagation(); moveCategory(cat.id, 'up') }} disabled={idx === 0} className="p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed">
                                                 <ArrowUp size={16} />
                                             </button>
-                                            <button onClick={e => { e.stopPropagation(); moveCategory(cat.id, 'down')}} disabled={idx === sortedCategories.filter(canSee).length - 1} className="p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed">
+                                            <button onClick={e => { e.stopPropagation(); moveCategory(cat.id, 'down') }} disabled={idx === sortedCategories.filter(canSee).length - 1} className="p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed">
                                                 <ArrowDown size={16} />
                                             </button>
                                             <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-full">{isExp ? <ChevronDown size={20} /> : <ChevronRight size={20} />}</div>

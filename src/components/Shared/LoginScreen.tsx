@@ -1,21 +1,37 @@
 'use client';
 import { Leaf } from 'lucide-react';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 interface LoginScreenProps {
-    onLogin: (u: string, p: string, onError: (msg: string) => void) => void;
+    onLogin: (u: string, p: string, remember: boolean, onError: (msg: string) => void) => void;
     loading: boolean;
 }
 
 const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, loading }) => {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
+    const [rememberMe, setRememberMe] = useState(false);
     const [error, setError] = useState('');
+
+    useEffect(() => {
+        const remembered = localStorage.getItem('rememberedUser');
+        if (remembered) {
+            try {
+                const { username, password } = JSON.parse(remembered);
+                setUsername(username);
+                setPassword(password);
+                setRememberMe(true);
+            } catch (e) {
+                console.error("Failed to parse remembered user", e);
+                localStorage.removeItem('rememberedUser');
+            }
+        }
+    }, []);
 
     const handleLogin = (e: React.FormEvent) => {
         e.preventDefault();
         if (username.trim()) {
-            onLogin(username, password, setError);
+            onLogin(username, password, rememberMe, setError);
         }
     };
 
@@ -55,6 +71,18 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, loading }) => {
                             className="w-full bg-[#f6f7eb] dark:bg-[#1a202c] border-2 border-[#e0ddc8] dark:border-gray-600 rounded-2xl px-4 py-3 focus:outline-none focus:border-[#68c9bc] transition-colors"
                             placeholder="密碼"
                         />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                        <label className="flex items-center gap-2 cursor-pointer text-sm font-bold text-[#7f7a6d] dark:text-gray-300">
+                            <input
+                                type="checkbox"
+                                checked={rememberMe}
+                                onChange={(e) => setRememberMe(e.target.checked)}
+                                className="w-4 h-4 text-[#68c9bc] bg-gray-100 border-gray-300 rounded focus:ring-[#68c9bc] dark:focus:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                            />
+                            記住我
+                        </label>
                     </div>
 
                     {error && (
