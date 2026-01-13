@@ -1,7 +1,7 @@
 'use client';
 import { signInAnonymously } from 'firebase/auth';
 import { addDoc, collection, deleteDoc, doc, getDocs, onSnapshot, orderBy, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
-import { AlertCircle, CheckCircle, ChevronDown, ChevronRight, Code, Globe, Grid, Key, Layout, Leaf, LogOut, Save, User as UserIcon, Users } from 'lucide-react';
+import { AlertCircle, ArrowDown, ArrowUp, CheckCircle, ChevronDown, ChevronRight, Code, Globe, Grid, Key, Layout, Leaf, LogOut, Save, User as UserIcon, Users } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 // Imports
@@ -37,6 +37,8 @@ export default function MainApp() {
     const [allUsers, setAllUsers] = useState<User[]>([]);
     const [allGroups, setAllGroups] = useState<Group[]>([]);
     const [expandedCats, setExpandedCats] = useState<string[]>([]);
+    const [categoryOrder, setCategoryOrder] = useState<string[]>([]);
+    const [initialExpandDone, setInitialExpandDone] = useState(false);
 
     // Editing State
     const [isCatModalOpen, setIsCatModalOpen] = useState(false);
@@ -53,14 +55,47 @@ export default function MainApp() {
     // Forms
     const [catForm, setCatForm] = useState<Partial<Category>>({ name: '', description: '', allowedUsers: ['PUBLIC'], allowedGroups: [] });
     const [toolForm, setToolForm] = useState<Partial<Tool>>({ name: '', categoryId: '', type: 'code', code: '', url: '', allowedUsers: ['PUBLIC'], allowedGroups: [] });
-    const [userForm, setUserForm] = useState<Partial<User>>({ username: '', password: '', role: 'user' });
-    const [groupForm, setGroupForm] = useState<Partial<Group>>({ name: '', memberIds: [] });
+    const [userForm, setUserForm] = useState<Partial<User>>({ username: '', password: '', role: 'user', enabled: true });
+    const [groupForm, setGroupForm] = useState<Partial<Group>>({ name: '', description: '', memberIds: [] });
     const [toolFormErrors, setToolFormErrors] = useState<{ name?: string, categoryId?: string }>({});
 
     const currentUserGroupIds = useMemo(() => {
         if (!currentUser || !allGroups) return [];
         return allGroups.filter(g => g.memberIds?.includes(currentUser.id)).map(g => g.id);
     }, [currentUser, allGroups]);
+
+    const handleCategoryOrderChange = (newOrder: string[]) => {
+        setCategoryOrder(newOrder);
+        localStorage.setItem('categoryOrder', JSON.stringify(newOrder));
+    };
+
+    const sortedCategories = useMemo(() => {
+        const baseOrder = categories.map(c => c.id);
+        const currentOrder = categoryOrder.length > 0 ? categoryOrder : baseOrder;
+        
+        const categoryMap = new Map(categories.map(c => [c.id, c]));
+        const ordered = currentOrder.flatMap(id => categoryMap.get(id) ? [categoryMap.get(id)!] : []);
+        const unordered = categories.filter(c => !currentOrder.includes(c.id));
+        
+        return [...ordered, ...unordered];
+    }, [categories, categoryOrder]);
+
+    const moveCategory = (id: string, direction: 'up' | 'down') => {
+        const currentOrder = sortedCategories.map(c => c.id);
+        const index = currentOrder.indexOf(id);
+
+        if (direction === 'up' && index > 0) {
+            const newOrder = [...currentOrder];
+            [newOrder[index - 1], newOrder[index]] = [newOrder[index], newOrder[index - 1]]; // Swap
+            handleCategoryOrderChange(newOrder);
+        }
+
+        if (direction === 'down' && index < currentOrder.length - 1) {
+            const newOrder = [...currentOrder];
+            [newOrder[index + 1], newOrder[index]] = [newOrder[index], newOrder[index + 1]]; // Swap
+            handleCategoryOrderChange(newOrder);
+        }
+    };
 
     // Init
     useEffect(() => {
@@ -76,7 +111,7 @@ export default function MainApp() {
         init();
     }, []);
 
-    // init dark mode
+    // Init theme and user preferences
     useEffect(() => {
         const savedTheme = localStorage.getItem('nook-theme');
         const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -88,6 +123,11 @@ export default function MainApp() {
         } else if (systemPrefersDark) {
             setDarkMode(true);
         }
+
+        const savedOrder = localStorage.getItem('categoryOrder');
+        if (savedOrder) {
+            setCategoryOrder(JSON.parse(savedOrder));
+        }
     }, []);
 
     // Listeners
@@ -97,7 +137,6 @@ export default function MainApp() {
         const unsubCat = onSnapshot(query(collection(db, 'artifacts', appId, 'public', 'data', 'categories'), orderBy('createdAt', 'desc')), s => {
             const d = s.docs.map(doc => ({ id: doc.id, ...doc.data() } as Category));
             setCategories(d);
-            if (d.length > 0 && expandedCats.length === 0) setExpandedCats([d[0].id]);
         });
         const u1 = sub('tools', setTools, 'createdAt');
         const u2 = sub('users', setAllUsers, 'username');
@@ -105,11 +144,40 @@ export default function MainApp() {
         return () => { unsubCat(); u1(); u2(); u3(); };
     }, [currentUser]);
 
+    useEffect(() => {
+        if (sortedCategories.length > 0 && !initialExpandDone) {
+            const firstVisibleCategory = sortedCategories.find(canSee);
+            if (firstVisibleCategory) {
+                setExpandedCats([firstVisibleCategory.id]);
+                setInitialExpandDone(true);
+            }
+        }
+    }, [sortedCategories, initialExpandDone]);
+
+    const handleUserEnabledToggle = async (user: User, enabled: boolean) => {
+        try {
+            const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', user.id);
+            await updateDoc(userRef, { enabled });
+        } catch (e) {
+            console.error("Failed to toggle user enabled state", e);
+            setAlertState({ isOpen: true, title: '系統錯誤', message: '更新使用者狀態失敗', type: 'error' });
+        }
+    };
+
     const handleLogin = async (u: string, p: string, err: any) => {
         setLoading(true);
         const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'users'), where('username', '==', u), where('password', '==', p));
         const snap = await getDocs(q);
-        if (!snap.empty) { setCurrentUser({ id: snap.docs[0].id, ...snap.docs[0].data() } as User); setActiveTab('dashboard'); }
+        if (!snap.empty) {
+            const user = { id: snap.docs[0].id, ...snap.docs[0].data() } as User;
+            if (user.enabled === false) {
+                err("此帳號已被停用");
+                setLoading(false);
+                return;
+            }
+            setCurrentUser(user);
+            setActiveTab('dashboard');
+        }
         else { err("帳號或密碼錯誤"); }
         setLoading(false);
     };
@@ -202,15 +270,21 @@ export default function MainApp() {
             {/* Sidebar */}
             <div className="hidden md:flex w-64 flex-col p-4 gap-4 border-r border-[#e0ddc8] dark:border-gray-700 bg-[#f9faef]/80 dark:bg-[#1a202c]/80 backdrop-blur-md">
                 <div className="flex items-center gap-3 px-2 mb-4">
-                    <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-xl ${currentUser.role === 'admin' ? 'bg-[#e8b15d]' : 'bg-[#68c9bc]'}`}>{currentUser.role === 'admin' ? '管理' : '用戶'}</div>
+                    <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-xl ${currentUser.role === 'admin' ? 'bg-[#e8b15d]' : currentUser.role === 'powerUser' ? 'bg-blue-600' : 'bg-[#68c9bc]'}`}>
+                        {currentUser.role === 'admin' ? '管理' : currentUser.role === 'powerUser' ? '高階' : '用戶'}
+                    </div>
                     <div><div className="font-bold text-[#5e5a52] dark:text-white">{currentUser.username}</div><div className="text-xs text-gray-500 uppercase">{currentUser.role}</div></div>
                 </div>
                 <nav className="flex-1 space-y-2">
                     <NavButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={Grid} label="App 商店" />
-                    {currentUser.role === 'admin' && <>
+                    { (currentUser.role === 'admin' || currentUser.role === 'powerUser') && <>
                         <div className="text-xs font-bold text-gray-400 mt-6 mb-2 px-4 uppercase">後台管理</div>
-                        <NavButton active={activeTab === 'admin-cats'} onClick={() => setActiveTab('admin-cats')} icon={Layout} label="類別管理" />
-                        <NavButton active={activeTab === 'admin-tools'} onClick={() => setActiveTab('admin-tools')} icon={Code} label="工具上架" />
+                        {currentUser.role === 'admin' &&
+                            <>
+                                <NavButton active={activeTab === 'admin-cats'} onClick={() => setActiveTab('admin-cats')} icon={Layout} label="類別管理" />
+                                <NavButton active={activeTab === 'admin-tools'} onClick={() => setActiveTab('admin-tools')} icon={Code} label="工具上架" />
+                            </>
+                        }
                         <NavButton active={activeTab === 'admin-groups'} onClick={() => setActiveTab('admin-groups')} icon={Users} label="群組管理" />
                         <NavButton active={activeTab === 'admin-users'} onClick={() => setActiveTab('admin-users')} icon={UserIcon} label="人員名冊" />
                     </>}
@@ -227,7 +301,7 @@ export default function MainApp() {
 
                 {activeTab === 'dashboard' && (
                     <div className="space-y-4 overflow-y-auto custom-scrollbar pb-20">
-                        {categories.filter(canSee).map(cat => {
+                        {sortedCategories.filter(canSee).map((cat, idx) => {
                             const visibleTools = tools.filter(t => t.categoryId === cat.id && canSee(t));
                             if (!visibleTools.length && currentUser.role !== 'admin') return null;
                             const isExp = expandedCats.includes(cat.id);
@@ -235,7 +309,15 @@ export default function MainApp() {
                                 <div key={cat.id} className="bg-white/60 dark:bg-[#2d3748]/60 rounded-3xl shadow-sm">
                                     <div onClick={() => setExpandedCats(p => p.includes(cat.id) ? p.filter(i => i !== cat.id) : [...p, cat.id])} className="p-4 flex justify-between items-center cursor-pointer">
                                         <div className="flex items-center gap-3"><Leaf size={18} className="text-[#68c9bc]" /> <span className="font-bold text-lg dark:text-white">{cat.name}</span></div>
-                                        <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-full">{isExp ? <ChevronDown size={20} /> : <ChevronRight size={20} />}</div>
+                                        <div className="flex items-center gap-2">
+                                            <button onClick={e => { e.stopPropagation(); moveCategory(cat.id, 'up')}} disabled={idx === 0} className="p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed">
+                                                <ArrowUp size={16} />
+                                            </button>
+                                            <button onClick={e => { e.stopPropagation(); moveCategory(cat.id, 'down')}} disabled={idx === sortedCategories.filter(canSee).length - 1} className="p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed">
+                                                <ArrowDown size={16} />
+                                            </button>
+                                            <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-full">{isExp ? <ChevronDown size={20} /> : <ChevronRight size={20} />}</div>
+                                        </div>
                                     </div>
                                     {isExp && (
                                         <div className="p-4 pt-0 grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -260,15 +342,34 @@ export default function MainApp() {
                 {/* Admin Views */}
                 {activeTab === 'admin-users' && (
                     <AdminSpreadsheet<User> title="人員帳號" icon={UserIcon} data={allUsers}
-                        onAdd={() => { setEditingItem(null); setUserForm({ username: '', password: '', description: '', role: 'user' }); setIsUserModalOpen(true); }}
+                        onAdd={() => { setEditingItem(null); setUserForm({ username: '', password: '', description: '', role: 'user', enabled: true }); setIsUserModalOpen(true); }}
                         onEdit={i => { setEditingItem(i); setUserForm(i); setIsUserModalOpen(true); }}
                         onDelete={id => handleDelete('users', id)}
-                        columns={[{ label: '帳號', key: 'username' }, { label: '密碼', key: 'password' }, { label: '描述', key: 'description' }, { label: '角色', key: 'role' }]}
+                        columns={[
+                            { label: '帳號', key: 'username' },
+                            { label: '密碼', key: 'password' },
+                            { label: '描述', key: 'description' },
+                            { label: '角色', key: 'role' },
+                            {
+                                label: '啟用狀態',
+                                key: 'enabled',
+                                render: (enabled, item) => (
+                                    <label className="switch">
+                                        <input
+                                            type="checkbox"
+                                            checked={enabled ?? true}
+                                            onChange={(e) => handleUserEnabledToggle(item, e.target.checked)}
+                                        />
+                                        <span className="slider round"></span>
+                                    </label>
+                                )
+                            }
+                        ]}
                     />
                 )}
 
                 {/* Admin: Categories */}
-                {activeTab === 'admin-cats' && (
+                {activeTab === 'admin-cats' && currentUser.role === 'admin' && (
                     <div className="h-full">
                         <AdminSpreadsheet<Category>
                             title="類別資料庫"
@@ -296,7 +397,7 @@ export default function MainApp() {
                 )}
 
                 {/* Admin: Tools */}
-                {activeTab === 'admin-tools' && (
+                {activeTab === 'admin-tools' && currentUser.role === 'admin' && (
                     <div className="h-full overflow-x-auto">
                         <AdminSpreadsheet<Tool>
                             title="程式碼倉庫"
@@ -356,11 +457,12 @@ export default function MainApp() {
                             title="群組管理"
                             icon={Users}
                             data={allGroups}
-                            onAdd={() => { setEditingItem(null); setGroupForm({ name: '', memberIds: [] }); setIsGroupModalOpen(true); }}
+                            onAdd={() => { setEditingItem(null); setGroupForm({ name: '', description: '', memberIds: [] }); setIsGroupModalOpen(true); }}
                             onEdit={(item) => { setEditingItem(item); setGroupForm(item); setIsGroupModalOpen(true); }}
                             onDelete={(id) => handleDelete('groups', id)}
                             columns={[
                                 { label: '群組名稱', key: 'name' },
+                                { label: '描述', key: 'description' },
                                 { label: '人數', key: 'memberIds', render: (ids) => <span className="font-bold text-purple-600">{ids?.length || 0} 人</span> },
                                 {
                                     label: '成員預覽',
@@ -382,8 +484,19 @@ export default function MainApp() {
                     <div><label className="text-sm font-bold">帳號</label><input value={userForm.username} onChange={e => setUserForm({ ...userForm, username: e.target.value })} className="input-field" /></div>
                     <div><label className="text-sm font-bold">密碼</label><input value={userForm.password} onChange={e => setUserForm({ ...userForm, password: e.target.value })} className="input-field" /></div>
                     <div><label className="text-sm font-bold">描述</label><textarea value={userForm.description} onChange={e => setUserForm({ ...userForm, description: e.target.value })} className="input-field h-24" /></div>
-                    <div><label className="text-sm font-bold">角色</label><select value={userForm.role} onChange={e => setUserForm({ ...userForm, role: e.target.value as Role })} className="input-field"><option value="user">User</option><option value="admin">Admin</option></select></div>
-                    <button onClick={() => handleSave('users', userForm, setIsUserModalOpen, () => { })} className="action-btn">儲存</button>
+                    <div><label className="text-sm font-bold">角色</label><select value={userForm.role} onChange={e => setUserForm({ ...userForm, role: e.target.value as Role })} className="input-field"><option value="user">User</option><option value="powerUser">Power User</option><option value="admin">Admin</option></select></div>
+                    <div className="flex items-center gap-4">
+                        <label className="text-sm font-bold">啟用帳號</label>
+                        <label className="switch">
+                            <input
+                                type="checkbox"
+                                checked={userForm.enabled ?? true}
+                                onChange={e => setUserForm({ ...userForm, enabled: e.target.checked })}
+                            />
+                            <span className="slider round"></span>
+                        </label>
+                    </div>
+                    <button onClick={() => handleSave('users', userForm, setIsUserModalOpen, () => setUserForm({ username: '', password: '', description: '', role: 'user', enabled: true }))} className="action-btn">儲存</button>
                 </div>
             </Modal>
 
@@ -535,8 +648,9 @@ export default function MainApp() {
             <Modal isOpen={isGroupModalOpen} onClose={() => setIsGroupModalOpen(false)} title={editingItem ? "編輯群組" : "新增群組"}>
                 <div className="space-y-4">
                     <div><label className="text-sm font-bold block mb-1">群組名稱</label><input value={groupForm.name} onChange={e => setGroupForm({ ...groupForm, name: e.target.value })} className="input-field" placeholder="例如：行銷部" /></div>
+                    <div><label className="text-sm font-bold block mb-1">描述</label><textarea value={groupForm.description} onChange={e => setGroupForm({ ...groupForm, description: e.target.value })} className="input-field h-24" /></div>
                     <MemberSelector users={allUsers} selectedIds={groupForm.memberIds || []} onChange={ids => setGroupForm({ ...groupForm, memberIds: ids })} />
-                    <button onClick={() => handleSave('groups', groupForm, setIsGroupModalOpen, () => setGroupForm({ name: '', memberIds: [] }))} className="action-btn"><Save className="inline mr-2" size={18} /> 儲存</button>
+                    <button onClick={() => handleSave('groups', groupForm, setIsGroupModalOpen, () => setGroupForm({ name: '', description: '', memberIds: [] }))} className="action-btn"><Save className="inline mr-2" size={18} /> 儲存</button>
                 </div>
             </Modal>
 

@@ -24,6 +24,32 @@
     border-radius: 20px; 
   }
   
+  /* Toggle Switch */
+  .switch {
+    @apply relative inline-block w-12 h-6;
+  }
+  .switch input {
+    @apply opacity-0 w-0 h-0;
+  }
+  .slider {
+    @apply absolute cursor-pointer top-0 left-0 right-0 bottom-0 bg-gray-200 transition-all duration-300;
+  }
+  .slider:before {
+    @apply absolute content-[''] h-5 w-5 left-0.5 bottom-0.5 bg-white transition-all duration-300;
+  }
+  input:checked + .slider {
+    @apply bg-[#68c9bc];
+  }
+  input:checked + .slider:before {
+    transform: translateX(1.5rem); /* 24px */
+  }
+  .slider.round {
+    @apply rounded-full;
+  }
+  .slider.round:before {
+    @apply rounded-full;
+  }
+  
   /* 讓 iframe 內的內容在深色模式下正確顯示 (選用) */
   .dark iframe {
     color-scheme: dark;

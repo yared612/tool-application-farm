@@ -1,7 +1,7 @@
 // src/types/index.ts
 import { Timestamp } from 'firebase/firestore';
 
-export type Role = 'admin' | 'user';
+export type Role = 'admin' | 'user' | 'powerUser';
 
 export interface BaseEntity {
   id: string;
@@ -13,10 +13,12 @@ export interface User extends BaseEntity {
   password?: string;
   description?: string;
   role: Role;
+  enabled?: boolean;
 }
 
 export interface Group extends BaseEntity {
   name: string;
+  description?: string;
   memberIds: string[];
 }
 
