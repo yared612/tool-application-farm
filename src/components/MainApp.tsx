@@ -305,14 +305,14 @@ export default function MainApp() {
                     <NavButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={Grid} label="App 商店" />
                     {(currentUser.role === 'admin' || currentUser.role === 'powerUser') && <>
                         <div className="text-xs font-bold text-gray-400 mt-6 mb-2 px-4 uppercase">後台管理</div>
+                        <NavButton active={activeTab === 'admin-cats'} onClick={() => setActiveTab('admin-cats')} icon={Layout} label="類別管理" />
+                        <NavButton active={activeTab === 'admin-tools'} onClick={() => setActiveTab('admin-tools')} icon={Code} label="工具上架" />
                         {currentUser.role === 'admin' &&
                             <>
-                                <NavButton active={activeTab === 'admin-cats'} onClick={() => setActiveTab('admin-cats')} icon={Layout} label="類別管理" />
-                                <NavButton active={activeTab === 'admin-tools'} onClick={() => setActiveTab('admin-tools')} icon={Code} label="工具上架" />
+                                <NavButton active={activeTab === 'admin-groups'} onClick={() => setActiveTab('admin-groups')} icon={Users} label="群組管理" />
+                                <NavButton active={activeTab === 'admin-users'} onClick={() => setActiveTab('admin-users')} icon={UserIcon} label="人員名冊" />
                             </>
                         }
-                        <NavButton active={activeTab === 'admin-groups'} onClick={() => setActiveTab('admin-groups')} icon={Users} label="群組管理" />
-                        <NavButton active={activeTab === 'admin-users'} onClick={() => setActiveTab('admin-users')} icon={UserIcon} label="人員名冊" />
                     </>}
                 </nav>
                 <button onClick={() => setIsPwdModalOpen(true)} className="mt-auto flex items-center gap-3 p-3 rounded-2xl hover:bg-white dark:hover:bg-gray-700 text-[#7f7a6d] dark:text-gray-400 font-bold"><Key size={20} /> 變更密碼</button>
@@ -366,7 +366,7 @@ export default function MainApp() {
                 )}
 
                 {/* Admin Views */}
-                {activeTab === 'admin-users' && (
+                {activeTab === 'admin-users' && currentUser.role === 'admin' && (
                     <AdminSpreadsheet<User> title="人員帳號" icon={UserIcon} data={allUsers}
                         onAdd={() => { setEditingItem(null); setUserForm({ username: '', password: '', description: '', role: 'user', enabled: true }); setIsUserModalOpen(true); }}
                         onEdit={i => { setEditingItem(i); setUserForm(i); setIsUserModalOpen(true); }}
@@ -395,7 +395,7 @@ export default function MainApp() {
                 )}
 
                 {/* Admin: Categories */}
-                {activeTab === 'admin-cats' && currentUser.role === 'admin' && (
+                {activeTab === 'admin-cats' && (currentUser.role === 'admin' || currentUser.role === 'powerUser') && (
                     <div className="h-full">
                         <AdminSpreadsheet<Category>
                             title="類別資料庫"
@@ -423,7 +423,7 @@ export default function MainApp() {
                 )}
 
                 {/* Admin: Tools */}
-                {activeTab === 'admin-tools' && currentUser.role === 'admin' && (
+                {activeTab === 'admin-tools' && (currentUser.role === 'admin' || currentUser.role === 'powerUser') && (
                     <div className="h-full overflow-x-auto">
                         <AdminSpreadsheet<Tool>
                             title="程式碼倉庫"
@@ -477,7 +477,7 @@ export default function MainApp() {
                 )}
 
                 {/* Admin: Groups */}
-                {activeTab === 'admin-groups' && (
+                {activeTab === 'admin-groups' && currentUser.role === 'admin' && (
                     <div className="h-full">
                         <AdminSpreadsheet<Group>
                             title="群組管理"
