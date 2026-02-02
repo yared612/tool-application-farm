@@ -494,8 +494,8 @@ export default function MainApp() {
                                     label: '成員預覽',
                                     key: 'memberIds',
                                     render: (ids) => {
-                                        const names = ids?.map((uid: string) => allUsers.find(u => u.id === uid)?.username).filter(Boolean).join(', ');
-                                        return <span className="text-xs text-gray-400 truncate max-w-[200px] inline-block">{names}</span>
+                                        const descriptions = ids?.map((uid: string) => allUsers.find(u => u.id === uid)?.description).filter(Boolean).join(', ');
+                                        return <span className="text-xs text-gray-400 truncate max-w-[200px] inline-block">{descriptions}</span>
                                     }
                                 },
                             ]}
