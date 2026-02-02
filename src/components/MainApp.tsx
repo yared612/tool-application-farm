@@ -388,7 +388,8 @@ export default function MainApp() {
                                         />
                                         <span className="slider round"></span>
                                     </label>
-                                )
+                                ),
+                                getValue: (enabled) => (enabled ?? true) ? '是' : '否',
                             }
                         ]}
                     />
@@ -415,7 +416,8 @@ export default function MainApp() {
                                         <div className="flex flex-col text-xs text-gray-500">
                                             <span>{item.allowedGroups?.length || 0} 群組</span>
                                             <span>{u?.length || 0} 個人</span>
-                                        </div>
+                                        </div>,
+                                    getValue: (u, item) => u?.includes('PUBLIC') ? '公開' : `${item.allowedGroups?.length || 0} 群組, ${u?.length || 0} 個人`,
                                 },
                             ]}
                         />
@@ -457,10 +459,20 @@ export default function MainApp() {
                                             default:
                                                 return <span className="bg-gray-100 text-gray-700 px-2 py-0.5 rounded text-xs font-bold flex w-fit items-center gap-1"><Code size={12} /> 自訂代碼</span>;
                                         }
+                                    },
+                                    getValue: (t) => {
+                                        switch (t) {
+                                            case 'url': return '網頁鑲嵌';
+                                            case 'url_new_tab': return '新分頁開啟';
+                                            default: return '自訂代碼';
+                                        }
                                     }
                                 },
-                                { label: '分類', key: 'categoryId', render: (id) => categories.find(c => c.id === id)?.name || <span className="text-red-400">未分類</span> },
-                                // ... (權限欄位保持不變)
+                                {
+                                    label: '分類', key: 'categoryId',
+                                    render: (id) => categories.find(c => c.id === id)?.name || <span className="text-red-400">未分類</span>,
+                                    getValue: (id) => categories.find(c => c.id === id)?.name || '未分類'
+                                },
                                 {
                                     label: '權限',
                                     key: 'allowedUsers',
@@ -469,7 +481,8 @@ export default function MainApp() {
                                         <div className="flex gap-1 text-xs">
                                             <span className="bg-purple-100 text-purple-700 px-1 rounded">{item.allowedGroups?.length || 0} 群組</span>
                                             <span className="bg-blue-100 text-blue-700 px-1 rounded">{u?.length || 0} 人</span>
-                                        </div>
+                                        </div>,
+                                    getValue: (u, item) => u?.includes('PUBLIC') ? '公開' : `${item.allowedGroups?.length || 0} 群組, ${u?.length || 0} 人`,
                                 },
                             ]}
                         />
@@ -489,14 +502,20 @@ export default function MainApp() {
                             columns={[
                                 { label: '群組名稱', key: 'name' },
                                 { label: '描述', key: 'description' },
-                                { label: '人數', key: 'memberIds', render: (ids) => <span className="font-bold text-purple-600">{ids?.length || 0} 人</span> },
+                                {
+                                    label: '人數', key: 'memberIds',
+                                    render: (ids) => <span className="font-bold text-purple-600">{ids?.length || 0} 人</span>,
+                                    getValue: (ids) => `${ids?.length || 0} 人`
+                                },
                                 {
                                     label: '成員預覽',
                                     key: 'memberIds',
                                     render: (ids) => {
-                                        const names = ids?.map((uid: string) => allUsers.find(u => u.id === uid)?.username).filter(Boolean).join(', ');
-                                        return <span className="text-xs text-gray-400 truncate max-w-[200px] inline-block">{names}</span>
-                                    }
+                                        const descriptions = ids?.map((uid: string) => allUsers.find(u => u.id === uid)?.description).filter(Boolean).join(', ');
+                                        return <span className="text-xs text-gray-400 truncate max-w-[200px] inline-block">{descriptions}</span>
+                                    },
+                                    getValue: (ids) => ids?.map((uid: string) => allUsers.find(u => u.id === uid)?.description || '').filter(Boolean) || [],
+                                    filterType: 'any',
                                 },
                             ]}
                         />
