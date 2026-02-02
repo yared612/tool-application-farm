@@ -43,5 +43,6 @@ export interface Column<T> {
   label: string;
   key: keyof T;
   render?: (value: any, item: T) => React.ReactNode;
-  getValue?: (value: any, item: T) => string;
+  getValue?: (value: any, item: T) => string | string[];
+  filterType?: 'exact' | 'any';
 }

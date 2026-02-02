@@ -514,7 +514,8 @@ export default function MainApp() {
                                         const descriptions = ids?.map((uid: string) => allUsers.find(u => u.id === uid)?.description).filter(Boolean).join(', ');
                                         return <span className="text-xs text-gray-400 truncate max-w-[200px] inline-block">{descriptions}</span>
                                     },
-                                    getValue: (ids) => ids?.map((uid: string) => allUsers.find(u => u.id === uid)?.description).filter(Boolean).join(', ') || ''
+                                    getValue: (ids) => ids?.map((uid: string) => allUsers.find(u => u.id === uid)?.description || '').filter(Boolean) || [],
+                                    filterType: 'any',
                                 },
                             ]}
                         />

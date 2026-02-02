@@ -12,21 +12,36 @@ const AdminSpreadsheet = <T extends BaseEntity>({ data, columns, onEdit, onDelet
     const [filters, setFilters] = useState<Record<string, string[]>>({});
     const [sortConfig, setSortConfig] = useState<{ label: string; direction: 'ascending' | 'descending' } | null>(null);
 
-    const getVal = (item: T, col: Column<T>) => {
+    const getVal = (item: T, col: Column<T>): string | string[] => {
         if (col.getValue) {
             return col.getValue(item[col.key], item);
         }
+        // This fallback is problematic for arrays, but getValue should be provided for them.
         return String(item[col.key]);
     };
+
     const getUnique = (label: string) => {
         const col = columns.find(c => c.label === label)!;
-        return Array.from(new Set(data.map(i => getVal(i, col)))).sort((a, b) => a.localeCompare(b, 'zh-TW'));
+        const allValues = data.map(i => getVal(i, col));
+
+        if (col.filterType === 'any') {
+            const flatValues = (allValues as string[][]).flat();
+            return Array.from(new Set(flatValues)).sort((a, b) => a.localeCompare(b, 'zh-TW'));
+        }
+
+        return Array.from(new Set(allValues as string[])).sort((a, b) => a.localeCompare(b, 'zh-TW'));
     }
 
     const filteredData = useMemo(() => data.filter(item => Object.entries(filters).every(([label, values]) => {
         if (!values?.length) return true;
         const col = columns.find(c => c.label === label)!;
-        return values.includes(getVal(item, col));
+        const itemValue = getVal(item, col);
+
+        if (col.filterType === 'any' && Array.isArray(itemValue)) {
+            return values.every(v => itemValue.includes(v));
+        }
+
+        return values.includes(itemValue as string);
     })), [data, filters, columns]);
 
     const sortedData = useMemo(() => {
@@ -69,14 +84,14 @@ const AdminSpreadsheet = <T extends BaseEntity>({ data, columns, onEdit, onDelet
                         <tr>
                             {columns.map((col, idx) => (
                                 <th key={idx} className="p-3 font-bold text-[#7f7a6d] dark:text-gray-300 border-b-2 border-[#e0ddc8] relative">
-                                    <div className="flex justify-between items-center">
+                                    <div className="flex items-center gap-2">
+                                        <button onClick={() => setActiveFilterCol(activeFilterCol === col.label ? null : col.label)}><Filter size={14} /></button>
                                         <div className="flex items-center gap-1 cursor-pointer" onClick={() => requestSort(col.label)}>
                                             {col.label}
                                             {sortConfig?.label === col.label && (
                                                 sortConfig.direction === 'ascending' ? <ArrowUp size={14} /> : <ArrowDown size={14} />
                                             )}
                                         </div>
-                                        <button onClick={(e) => { e.stopPropagation(); setActiveFilterCol(activeFilterCol === col.label ? null : col.label) }}><Filter size={14} /></button>
                                     </div>
                                     {activeFilterCol === col.label && (
                                         <div className="absolute top-full left-0 mt-1 w-48 bg-white dark:bg-[#374151] shadow-xl border z-50 p-2 max-h-48 overflow-y-auto">
