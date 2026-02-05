@@ -127,7 +127,7 @@ export const MemberSelector: React.FC<MemberSelectorProps> = ({ users, selectedI
                     return (
                         <div key={user.id} onClick={() => toggle(user.id)} className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer text-sm border ${isSelected ? 'bg-green-50 border-green-200 text-green-700' : 'bg-white dark:bg-gray-700 border-gray-200 dark:text-gray-300'}`}>
                             <div className={`w-4 h-4 rounded border flex items-center justify-center ${isSelected ? 'bg-green-500 border-green-500' : 'bg-white border-gray-300'}`}>{isSelected && <Check size={10} className="text-white" />}</div>
-                            <span className="truncate">{user.description}</span>
+                            <span className="truncate" title={user.username}>{user.description || user.username}</span>
                         </div>
                     )
                 })}

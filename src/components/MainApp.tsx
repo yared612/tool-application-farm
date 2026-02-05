@@ -511,8 +511,17 @@ export default function MainApp() {
                                     label: '成員預覽',
                                     key: 'memberIds',
                                     render: (ids) => {
-                                        const descriptions = ids?.map((uid: string) => allUsers.find(u => u.id === uid)?.description).filter(Boolean).join(', ');
-                                        return <span className="text-xs text-gray-400 truncate max-w-[200px] inline-block">{descriptions}</span>
+                                        const members = ids?.map((uid: string) => allUsers.find(u => u.id === uid)).filter(Boolean) as User[];
+                                        return (
+                                            <div className="text-xs text-gray-400 truncate max-w-[200px] inline-block">
+                                                {members.map((member, index) => (
+                                                    <span key={member.id} title={member.username}>
+                                                        {member.description || member.username}
+                                                        {index < members.length - 1 && ', '}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        );
                                     },
                                     getValue: (ids) => ids?.map((uid: string) => allUsers.find(u => u.id === uid)?.description || '').filter(Boolean) || [],
                                     filterType: 'any',
