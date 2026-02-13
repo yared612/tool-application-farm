@@ -93,7 +93,7 @@ export const PermissionSelector: React.FC<PermissionSelectorProps> = ({
                                 return (
                                     <div key={user.id} onClick={() => toggleUser(user.id)} className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer text-sm border ${isSelected ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 dark:text-gray-300'}`}>
                                         <div className={`w-4 h-4 rounded border flex items-center justify-center ${isSelected ? 'bg-blue-500 border-blue-500' : 'bg-white border-gray-300'}`}>{isSelected && <Check size={10} className="text-white" />}</div>
-                                        <span className="truncate">{user.username}</span>
+                                        <span className="truncate" title={user.username}>{user.description || user.username}</span>
                                     </div>
                                 )
                             })}
