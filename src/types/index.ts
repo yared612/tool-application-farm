@@ -32,6 +32,7 @@ export interface Category extends BaseEntity {
 export interface Tool extends BaseEntity {
   name: string;
   categoryId: string;
+  order?: number;
   allowedUsers: string[];
   allowedGroups: string[];
   type?: 'code' | 'url' | 'url_new_tab';
