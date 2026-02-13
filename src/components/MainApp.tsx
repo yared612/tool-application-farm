@@ -1,4 +1,20 @@
 'use client';
+import {
+    DndContext,
+    closestCenter,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    DragEndEvent,
+} from '@dnd-kit/core';
+import {
+    arrayMove,
+    SortableContext,
+    sortableKeyboardCoordinates,
+    useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { signInAnonymously } from 'firebase/auth';
 import { addDoc, collection, deleteDoc, doc, getDocs, onSnapshot, orderBy, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
 import { AlertCircle, ArrowDown, ArrowUp, CheckCircle, ChevronDown, ChevronRight, Code, Globe, Grid, Key, Layout, Leaf, LogOut, Save, User as UserIcon, Users } from 'lucide-react';
@@ -16,6 +32,39 @@ import { Category, Group, Role, Tool, User } from '@/types';
 import { MemberSelector, PermissionSelector } from './Shared/Selectors';
 
 type ActiveTab = 'dashboard' | 'admin-cats' | 'admin-tools' | 'admin-groups' | 'admin-users';
+
+const SortableToolItem = ({ id, tool, handleToolClick }: { id: string, tool: Tool, handleToolClick: (tool: Tool) => void }) => {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+    } = useSortable({ id });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+    };
+
+    return (
+        <div
+            ref={setNodeRef}
+            style={style}
+            {...attributes}
+            {...listeners}
+            onClick={() => handleToolClick(tool)}
+            className="bg-white dark:bg-[#1a202c] p-4 rounded-xl shadow cursor-pointer hover:scale-105 transition flex flex-col items-center"
+        >
+            <div className="w-12 h-12 bg-green-50 rounded-lg flex items-center justify-center mb-2">
+                {tool.type === 'url' || tool.type === 'url_new_tab'
+                    ? <Globe className="text-[#68c9bc]" />
+                    : <Code className="text-[#68c9bc]" />}
+            </div>
+            <span className="font-bold text-sm dark:text-gray-200">{tool.name}</span>
+        </div>
+    );
+};
 
 // Nav Button Component
 const NavButton = ({ active, onClick, icon: Icon, label }: any) => (
@@ -58,6 +107,45 @@ export default function MainApp() {
     const [userForm, setUserForm] = useState<Partial<User>>({ username: '', password: '', role: 'user', enabled: true });
     const [groupForm, setGroupForm] = useState<Partial<Group>>({ name: '', description: '', memberIds: [] });
     const [toolFormErrors, setToolFormErrors] = useState<{ name?: string, categoryId?: string }>({});
+
+    const sensors = useSensors(
+        useSensor(PointerSensor),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
+        })
+    );
+
+    const handleDragEnd = (event: DragEndEvent) => {
+        const { active, over } = event;
+
+        if (active.id !== over?.id) {
+            const activeTool = tools.find(t => t.id === active.id);
+            if (!activeTool) return;
+
+            const categoryId = activeTool.categoryId;
+            const categoryTools = tools.filter(t => t.categoryId === categoryId).sort((a, b) => (a.order || 0) - (b.order || 0));
+            const oldIndex = categoryTools.findIndex((t) => t.id === active.id);
+            const newIndex = categoryTools.findIndex((t) => t.id === over!.id);
+
+            const newOrderTools = arrayMove(categoryTools, oldIndex, newIndex);
+
+            setTools(prevTools => {
+                const otherCategoryTools = prevTools.filter(t => t.categoryId !== categoryId);
+                const updatedCategoryTools = newOrderTools.map((tool, index) => ({ ...tool, order: index }));
+                return [...otherCategoryTools, ...updatedCategoryTools];
+            });
+
+
+            const updates = newOrderTools.map((tool, index) => {
+                return updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tools', tool.id), { order: index });
+            });
+
+            Promise.all(updates).catch(e => {
+                console.error("Failed to update tool order", e);
+                // Optionally, revert state change
+            });
+        }
+    };
 
     const currentUserGroupIds = useMemo(() => {
         if (!currentUser || !allGroups) return [];
@@ -156,7 +244,11 @@ export default function MainApp() {
             const d = s.docs.map(doc => ({ id: doc.id, ...doc.data() } as Category));
             setCategories(d);
         });
-        const u1 = sub('tools', setTools, 'createdAt');
+        const u1 = onSnapshot(query(collection(db, 'artifacts', appId, 'public', 'data', 'tools')), s => {
+            const fetchedTools = s.docs.map(d => ({ id: d.id, ...d.data() } as Tool));
+            fetchedTools.sort((a, b) => (a.order || 0) - (b.order || 0));
+            setTools(fetchedTools);
+        });
         const u2 = sub('users', setAllUsers, 'username');
         const u3 = sub('groups', setAllGroups, 'name');
         return () => { unsubCat(); u1(); u2(); u3(); };
@@ -217,7 +309,9 @@ export default function MainApp() {
 
     const handleToolSave = () => {
         const errors: { name?: string; categoryId?: string } = {};
-        if (!toolForm.name?.trim()) {
+        const trimmedName = toolForm.name?.trim(); // Get trimmed name from form
+
+        if (!trimmedName) {
             errors.name = '工具名稱為必填項目';
         }
         if (!toolForm.categoryId) {
@@ -228,9 +322,115 @@ export default function MainApp() {
             setToolFormErrors(errors);
             return;
         }
-
         setToolFormErrors({});
-        handleSave('tools', toolForm, setIsToolModalOpen, () => setToolForm({ name: '', categoryId: '', type: 'code', code: '', url: '', allowedUsers: ['PUBLIC'], allowedGroups: [] }));
+
+        const categoryTools = tools.filter(t => t.categoryId === toolForm.categoryId);
+        const newToolOrder = editingItem ? toolForm.order : categoryTools.length;
+
+        const finalFormState = { ...toolForm, name: trimmedName, order: newToolOrder };
+
+
+        // Check for duplicates using the trimmed name
+        let isDuplicate = false;
+        if (editingItem) {
+            // We are editing.
+            // A duplicate exists if the name was changed to a name that already exists in the list,
+            // excluding the item being edited itself.
+                    if (editingItem.name !== finalFormState.name) {
+                         isDuplicate = tools.some(tool => tool.id !== editingItem.id && tool.name === finalFormState.name);
+                    }
+                } else {
+                    // We are creating.
+                    // A duplicate exists if any tool in the list already has this name.
+                    isDuplicate = tools.some(tool => tool.name === finalFormState.name);
+                }
+        if (isDuplicate) {
+            setAlertState({ isOpen: true, title: '錯誤', message: '此工具名稱已經存在', type: 'error' });
+            return;
+        }
+
+        handleSave('tools', finalFormState, setIsToolModalOpen, () => setToolForm({ name: '', categoryId: '', type: 'code', code: '', url: '', allowedUsers: ['PUBLIC'], allowedGroups: [] }));
+    };
+
+    const handleUserSave = () => {
+        // 檢查帳號是否為空
+        if (!userForm.username?.trim()) {
+            setAlertState({ isOpen: true, title: '資料不完整', message: '「帳號」為必填欄位', type: 'error' });
+            return;
+        }
+    
+        // This check is for new items.
+        if (!editingItem) {
+            const isDuplicate = allUsers.some(user => user.username === userForm.username);
+            if (isDuplicate) {
+                setAlertState({ isOpen: true, title: '錯誤', message: '此帳號已經存在', type: 'error' });
+                return;
+            }
+        }
+        // This check is for existing items, if the username is changed.
+        else if (editingItem.username !== userForm.username) {
+            const isDuplicate = allUsers.some(user => user.username === userForm.username);
+            if (isDuplicate) {
+                setAlertState({ isOpen: true, title: '錯誤', message: '此帳號已經存在', type: 'error' });
+                return;
+            }
+        }
+    
+        handleSave('users', userForm, setIsUserModalOpen, () => setUserForm({ username: '', password: '', description: '', role: 'user', enabled: true }));
+    };
+
+    const handleGroupSave = () => {
+        // 檢查群組名稱是否為空
+        if (!groupForm.name?.trim()) {
+            setAlertState({ isOpen: true, title: '資料不完整', message: '「群組名稱」為必填欄位', type: 'error' });
+            return;
+        }
+    
+        // 新增模式下，檢查名稱是否重複
+        if (!editingItem) {
+            const isDuplicate = allGroups.some(group => group.name === groupForm.name);
+            if (isDuplicate) {
+                setAlertState({ isOpen: true, title: '錯誤', message: '此群組名稱已經存在', type: 'error' });
+                return;
+            }
+        }
+        // 編輯模式下，如果名稱有變更，也需要檢查
+        else if (editingItem.name !== groupForm.name) {
+            const isDuplicate = allGroups.some(group => group.name === groupForm.name);
+            if (isDuplicate) {
+                setAlertState({ isOpen: true, title: '錯誤', message: '此群組名稱已經存在', type: 'error' });
+                return;
+            }
+        }
+    
+        handleSave('groups', groupForm, setIsGroupModalOpen, () => setGroupForm({ name: '', description: '', memberIds: [] }));
+    };
+
+    const handleCategorySave = () => {
+        const trimmedName = catForm.name?.trim();
+    
+        if (!trimmedName) {
+            setAlertState({ isOpen: true, title: '資料不完整', message: '「類別名稱」為必填欄位', type: 'error' });
+            return;
+        }
+    
+        const finalFormState = { ...catForm, name: trimmedName };
+    
+        let isDuplicate = false;
+        if (editingItem) {
+            if (editingItem.name !== finalFormState.name) {
+                isDuplicate = categories.some(cat => cat.id !== editingItem.id && cat.name === finalFormState.name);
+            }
+        } else {
+            isDuplicate = categories.some(cat => cat.name === finalFormState.name);
+        }
+    
+        if (isDuplicate) {
+            setAlertState({ isOpen: true, title: '錯誤', message: '此類別名稱已經存在', type: 'error' });
+            return;
+        }
+    
+        handleSave('categories', finalFormState, setIsCatModalOpen, () => setCatForm({ name: '', description: '', allowedUsers: ['PUBLIC'], allowedGroups: [] }));
     };
 
     const handleDelete = (colName: string, id: string) => {
@@ -326,43 +526,48 @@ export default function MainApp() {
                 </h1>
 
                 {activeTab === 'dashboard' && (
-                    <div className="space-y-4 overflow-y-auto custom-scrollbar pb-20">
-                        {sortedCategories.filter(canSee).map((cat, idx) => {
-                            const visibleTools = tools.filter(t => t.categoryId === cat.id && canSee(t));
-                            if (!visibleTools.length && currentUser.role !== 'admin') return null;
-                            const isExp = expandedCats.includes(cat.id);
-                            return (
-                                <div key={cat.id} className="bg-white/60 dark:bg-[#2d3748]/60 rounded-3xl shadow-sm">
-                                    <div onClick={() => setExpandedCats(p => p.includes(cat.id) ? p.filter(i => i !== cat.id) : [...p, cat.id])} className="p-4 flex justify-between items-center cursor-pointer">
-                                        <div className="flex items-center gap-3"><Leaf size={18} className="text-[#68c9bc]" /> <span className="font-bold text-lg dark:text-white">{cat.name}</span></div>
-                                        <div className="flex items-center gap-2">
-                                            <button onClick={e => { e.stopPropagation(); moveCategory(cat.id, 'up') }} disabled={idx === 0} className="p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed">
-                                                <ArrowUp size={16} />
-                                            </button>
-                                            <button onClick={e => { e.stopPropagation(); moveCategory(cat.id, 'down') }} disabled={idx === sortedCategories.filter(canSee).length - 1} className="p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed">
-                                                <ArrowDown size={16} />
-                                            </button>
-                                            <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-full">{isExp ? <ChevronDown size={20} /> : <ChevronRight size={20} />}</div>
+                    <DndContext
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={handleDragEnd}
+                    >
+                        <div className="space-y-4 overflow-y-auto custom-scrollbar pb-20">
+                            {sortedCategories.filter(canSee).map((cat, idx) => {
+                                const visibleTools = tools.filter(t => t.categoryId === cat.id && canSee(t)).sort((a, b) => (a.order || 0) - (b.order || 0));
+                                if (!visibleTools.length && currentUser.role !== 'admin') return null;
+                                const isExp = expandedCats.includes(cat.id);
+                                const toolIds = visibleTools.map(t => t.id);
+
+                                return (
+                                    <div key={cat.id} className="bg-white/60 dark:bg-[#2d3748]/60 rounded-3xl shadow-sm">
+                                        <div onClick={() => setExpandedCats(p => p.includes(cat.id) ? p.filter(i => i !== cat.id) : [...p, cat.id])} className="p-4 flex justify-between items-center cursor-pointer">
+                                            <div className="flex items-center gap-3"><Leaf size={18} className="text-[#68c9bc]" /> <span className="font-bold text-lg dark:text-white">{cat.name}</span></div>
+                                            <div className="flex items-center gap-2">
+                                                <button onClick={e => { e.stopPropagation(); moveCategory(cat.id, 'up') }} disabled={idx === 0} className="p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed">
+                                                    <ArrowUp size={16} />
+                                                </button>
+                                                <button onClick={e => { e.stopPropagation(); moveCategory(cat.id, 'down') }} disabled={idx === sortedCategories.filter(canSee).length - 1} className="p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed">
+                                                    <ArrowDown size={16} />
+                                                </button>
+                                                <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-full">{isExp ? <ChevronDown size={20} /> : <ChevronRight size={20} />}</div>
+                                            </div>
                                         </div>
-                                    </div>
-                                    {isExp && (
-                                        <div className="p-4 pt-0 grid grid-cols-2 md:grid-cols-4 gap-4">
-                                            {visibleTools.map(t => (
-                                                <div key={t.id} onClick={() => handleToolClick(t)} className="bg-white dark:bg-[#1a202c] p-4 rounded-xl shadow cursor-pointer hover:scale-105 transition flex flex-col items-center">
-                                                    <div className="w-12 h-12 bg-green-50 rounded-lg flex items-center justify-center mb-2">
-                                                        {t.type === 'url' || t.type === 'url_new_tab'
-                                                            ? <Globe className="text-[#68c9bc]" />
-                                                            : <Code className="text-[#68c9bc]" />}
-                                                    </div>
-                                                    <span className="font-bold text-sm dark:text-gray-200">{t.name}</span>
+                                        {isExp && (
+                                            <SortableContext
+                                                items={toolIds}
+                                            >
+                                                <div className="p-4 pt-0 grid grid-cols-2 md:grid-cols-4 gap-4">
+                                                    {visibleTools.map(t => (
+                                                        <SortableToolItem key={t.id} id={t.id} tool={t} handleToolClick={handleToolClick} />
+                                                    ))}
                                                 </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            )
-                        })}
-                    </div>
+                                            </SortableContext>
+                                        )}
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    </DndContext>
                 )}
 
                 {/* Admin Views */}
@@ -550,29 +755,7 @@ export default function MainApp() {
                             <span className="slider round"></span>
                         </label>
                     </div>
-                    <button onClick={() => handleSave('users', userForm, setIsUserModalOpen, () => setUserForm({ username: '', password: '', description: '', role: 'user', enabled: true }))} className="action-btn">儲存</button>
-                </div>
-            </Modal>
-
-            {/* Alert Dialog */}
-            <Modal isOpen={alertState.isOpen} onClose={() => setAlertState(prev => ({ ...prev, isOpen: false }))} title={alertState.title}>
-                <div className="flex flex-col items-center gap-4 p-4">
-                    {alertState.type === 'error' && <div className="w-16 h-16 bg-red-100 text-red-500 rounded-full flex items-center justify-center"><AlertCircle size={32} /></div>}
-                    {alertState.type === 'success' && <div className="w-16 h-16 bg-green-100 text-green-500 rounded-full flex items-center justify-center"><CheckCircle size={32} /></div>}
-                    {alertState.type === 'confirm' && <div className="w-16 h-16 bg-yellow-100 text-yellow-600 rounded-full flex items-center justify-center"><AlertCircle size={32} /></div>}
-
-                    <p className="text-center text-gray-600 dark:text-gray-300 font-medium">{alertState.message}</p>
-
-                    <div className="flex gap-3 mt-2 w-full justify-center">
-                        {alertState.type === 'confirm' ? (
-                            <>
-                                <button onClick={() => setAlertState(prev => ({ ...prev, isOpen: false }))} className="px-5 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold transition">取消</button>
-                                <button onClick={() => alertState.onConfirm && alertState.onConfirm()} className="px-5 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white font-bold transition shadow-lg shadow-red-200">確認刪除</button>
-                            </>
-                        ) : (
-                            <button onClick={() => setAlertState(prev => ({ ...prev, isOpen: false }))} className="px-8 py-2.5 rounded-xl bg-[#68c9bc] hover:bg-[#5ab8ac] text-white font-bold transition shadow-lg shadow-teal-100">確定</button>
-                        )}
-                    </div>
+                    <button onClick={handleUserSave} className="action-btn">儲存</button>
                 </div>
             </Modal>
 
@@ -589,15 +772,10 @@ export default function MainApp() {
             {/* Modal: Category */}
             <Modal isOpen={isCatModalOpen} onClose={() => setIsCatModalOpen(false)} title={editingItem ? "編輯類別" : "新增類別"}>
                 <div className="space-y-4">
-                    <div><label className="text-sm font-bold block mb-1">類別名稱</label><input value={catForm.name} onChange={e => setCatForm({ ...catForm, name: e.target.value })} className="input-field" /></div>
-                    <div><label className="text-sm font-bold block mb-1">描述</label><textarea value={catForm.description} onChange={e => setCatForm({ ...catForm, description: e.target.value })} className="input-field h-24" /></div>
-                    <PermissionSelector
-                        users={allUsers} groups={allGroups}
-                        selectedUsers={catForm.allowedUsers || []} selectedGroups={catForm.allowedGroups || []}
-                        onUserChange={ids => setCatForm(prev => ({ ...prev, allowedUsers: ids }))}
-                        onGroupChange={ids => setCatForm(prev => ({ ...prev, allowedGroups: ids }))}
-                    />
-                    <button onClick={() => handleSave('categories', catForm, setIsCatModalOpen, () => setCatForm({ name: '', description: '', allowedUsers: ['PUBLIC'], allowedGroups: [] }))} className="action-btn"><Save className="inline mr-2" size={18} /> 儲存</button>
+.
+.
+.
+                    <button onClick={handleCategorySave} className="action-btn"><Save className="inline mr-2" size={18} /> 儲存</button>
                 </div>
             </Modal>
 
@@ -704,7 +882,29 @@ export default function MainApp() {
                     <div><label className="text-sm font-bold block mb-1">群組名稱</label><input value={groupForm.name} onChange={e => setGroupForm({ ...groupForm, name: e.target.value })} className="input-field" placeholder="例如：行銷部" /></div>
                     <div><label className="text-sm font-bold block mb-1">描述</label><textarea value={groupForm.description} onChange={e => setGroupForm({ ...groupForm, description: e.target.value })} className="input-field h-24" /></div>
                     <MemberSelector users={allUsers} selectedIds={groupForm.memberIds || []} onChange={ids => setGroupForm({ ...groupForm, memberIds: ids })} />
-                    <button onClick={() => handleSave('groups', groupForm, setIsGroupModalOpen, () => setGroupForm({ name: '', description: '', memberIds: [] }))} className="action-btn"><Save className="inline mr-2" size={18} /> 儲存</button>
+                    <button onClick={handleGroupSave} className="action-btn"><Save className="inline mr-2" size={18} /> 儲存</button>
+                </div>
+            </Modal>
+
+            {/* Alert Dialog */}
+            <Modal isOpen={alertState.isOpen} onClose={() => setAlertState(prev => ({ ...prev, isOpen: false }))} title={alertState.title}>
+                <div className="flex flex-col items-center gap-4 p-4">
+                    {alertState.type === 'error' && <div className="w-16 h-16 bg-red-100 text-red-500 rounded-full flex items-center justify-center"><AlertCircle size={32} /></div>}
+                    {alertState.type === 'success' && <div className="w-16 h-16 bg-green-100 text-green-500 rounded-full flex items-center justify-center"><CheckCircle size={32} /></div>}
+                    {alertState.type === 'confirm' && <div className="w-16 h-16 bg-yellow-100 text-yellow-600 rounded-full flex items-center justify-center"><AlertCircle size={32} /></div>}
+
+                    <p className="text-center text-gray-600 dark:text-gray-300 font-medium">{alertState.message}</p>
+
+                    <div className="flex gap-3 mt-2 w-full justify-center">
+                        {alertState.type === 'confirm' ? (
+                            <>
+                                <button onClick={() => setAlertState(prev => ({ ...prev, isOpen: false }))} className="px-5 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold transition">取消</button>
+                                <button onClick={() => alertState.onConfirm && alertState.onConfirm()} className="px-5 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white font-bold transition shadow-lg shadow-red-200">確認刪除</button>
+                            </>
+                        ) : (
+                            <button onClick={() => setAlertState(prev => ({ ...prev, isOpen: false }))} className="px-8 py-2.5 rounded-xl bg-[#68c9bc] hover:bg-[#5ab8ac] text-white font-bold transition shadow-lg shadow-teal-100">確定</button>
+                        )}
+                    </div>
                 </div>
             </Modal>
 
