@@ -772,9 +772,14 @@ export default function MainApp() {
             {/* Modal: Category */}
             <Modal isOpen={isCatModalOpen} onClose={() => setIsCatModalOpen(false)} title={editingItem ? "編輯類別" : "新增類別"}>
                 <div className="space-y-4">
-.
-.
-.
+                    <div><label className="text-sm font-bold block mb-1">類別名稱</label><input value={catForm.name} onChange={e => setCatForm({ ...catForm, name: e.target.value })} className="input-field" /></div>
+                    <div><label className="text-sm font-bold block mb-1">描述</label><textarea value={catForm.description} onChange={e => setCatForm({ ...catForm, description: e.target.value })} className="input-field h-24" /></div>
+                    <PermissionSelector
+                        users={allUsers} groups={allGroups}
+                        selectedUsers={catForm.allowedUsers || []} selectedGroups={catForm.allowedGroups || []}
+                        onUserChange={ids => setCatForm(prev => ({ ...prev, allowedUsers: ids }))}
+                        onGroupChange={ids => setCatForm(prev => ({ ...prev, allowedGroups: ids }))}
+                    />
                     <button onClick={handleCategorySave} className="action-btn"><Save className="inline mr-2" size={18} /> 儲存</button>
                 </div>
             </Modal>
