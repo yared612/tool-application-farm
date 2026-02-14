@@ -109,7 +109,11 @@ export default function MainApp() {
     const [toolFormErrors, setToolFormErrors] = useState<{ name?: string, categoryId?: string }>({});
 
     const sensors = useSensors(
-        useSensor(PointerSensor),
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                distance: 8,
+            },
+        }),
         useSensor(KeyboardSensor, {
             coordinateGetter: sortableKeyboardCoordinates,
         })
