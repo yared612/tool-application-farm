@@ -79,11 +79,11 @@ const AdminSpreadsheet = <T extends BaseEntity>({ data, columns, onEdit, onDelet
                 <button onClick={onAdd} className="bg-[#e8b15d] text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1"><Plus size={16} /> 新增</button>
             </div>
             <div className="flex-1 overflow-x-auto overflow-y-auto p-0">
-                <table className="min-w-[800px] text-sm text-left">
-                    <thead className="bg-[#f2f4e6] dark:bg-[#1a202c] sticky top-0 z-10">
+                <table className="min-w-[800px] text-sm text-left border-separate border-spacing-0">
+                    <thead className="bg-[#f2f4e6] dark:bg-[#1a202c] sticky top-0 z-20">
                         <tr>
                             {columns.map((col, idx) => (
-                                <th key={idx} className={`p-3 font-bold text-[#7f7a6d] dark:text-gray-300 border-b-2 border-[#e0ddc8] relative whitespace-nowrap ${idx === 0 ? 'sticky left-0 bg-[#f2f4e6] dark:bg-[#1a202c] z-20' : ''}`}>
+                                <th key={idx} className={`p-3 font-bold text-[#7f7a6d] dark:text-gray-300 border-b-2 border-[#e0ddc8] relative whitespace-nowrap bg-[#f2f4e6] dark:bg-[#1a202c] ${idx === 0 ? 'sticky left-0 z-30' : ''}`}>
                                     <div className="flex items-center gap-2">
                                         <button onClick={() => setActiveFilterCol(activeFilterCol === col.label ? null : col.label)}><Filter size={14} /></button>
                                         <div className="flex items-center gap-1 cursor-pointer" onClick={() => requestSort(col.label)}>
@@ -106,18 +106,18 @@ const AdminSpreadsheet = <T extends BaseEntity>({ data, columns, onEdit, onDelet
                                     )}
                                 </th>
                             ))}
-                            <th className="p-3 border-b-2 border-[#e0ddc8] min-w-[90px] text-center sticky right-0 bg-[#f2f4e6] dark:bg-[#1a202c] z-20">操作</th>
+                            <th className="p-3 border-b-2 border-[#e0ddc8] min-w-[90px] text-center sticky right-0 bg-[#f2f4e6] dark:bg-[#1a202c] z-30">操作</th>
                         </tr>
                     </thead>
                     <tbody>
                         {sortedData.map(item => (
                             <tr key={item.id} className="border-b border-[#f0f0f0] dark:border-gray-700 hover:bg-[#fcfdf9] dark:hover:bg-[#3d4a61] group">
                                 {columns.map((col, idx) => (
-                                    <td key={idx} className={`p-3 min-w-[120px] max-w-[300px] truncate ${idx === 0 ? 'sticky left-0 bg-white dark:bg-[#2d3748] group-hover:bg-[#fcfdf9] dark:group-hover:bg-[#3d4a61] z-10' : ''}`}>
+                                    <td key={idx} className={`p-3 min-w-[120px] max-w-[300px] truncate bg-white dark:bg-[#2d3748] ${idx === 0 ? 'sticky left-0 z-10 group-hover:bg-[#fcfdf9] dark:group-hover:bg-[#3d4a61]' : 'group-hover:bg-[#fcfdf9] dark:group-hover:bg-[#3d4a61]'}`}>
                                         {col.render ? col.render(item[col.key], item) : String(item[col.key])}
                                     </td>
                                 ))}
-                                <td className="p-2 flex gap-1 justify-center sticky right-0 bg-white dark:bg-[#2d3748] group-hover:bg-[#fcfdf9] dark:group-hover:bg-[#3d4a61] z-10">
+                                <td className="p-2 flex gap-1 justify-center sticky right-0 bg-white dark:bg-[#2d3748] z-10 group-hover:bg-[#fcfdf9] dark:group-hover:bg-[#3d4a61]">
                                     <button onClick={() => onEdit(item)} className="p-1.5 bg-blue-100 text-blue-600 rounded-lg"><Edit size={14} /></button>
                                     <button onClick={() => onDelete(item.id)} className="p-1.5 bg-red-100 text-red-600 rounded-lg"><Trash2 size={14} /></button>
                                 </td>
