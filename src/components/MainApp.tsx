@@ -636,14 +636,13 @@ export default function MainApp() {
                                 ),
                                 getValue: (enabled) => (enabled ?? true) ? '是' : '否',
                             }
-                        ]}
-                    />
+                            ]}
+                        />
                 )}
 
                 {/* Admin: Categories */}
                 {activeTab === 'admin-cats' && (currentUser.role === 'admin' || currentUser.role === 'powerUser') && (
-                    <div className="h-full overflow-x-auto">
-                        <AdminSpreadsheet<Category>
+                    <AdminSpreadsheet<Category>
                             title="類別資料庫"
                             icon={Layout}
                             data={categories}
@@ -666,13 +665,11 @@ export default function MainApp() {
                                 },
                             ]}
                         />
-                    </div>
                 )}
 
                 {/* Admin: Tools */}
                 {activeTab === 'admin-tools' && (currentUser.role === 'admin' || currentUser.role === 'powerUser') && (
-                    <div className="h-full overflow-x-auto">
-                        <AdminSpreadsheet<Tool>
+                    <AdminSpreadsheet<Tool>
                             title="程式碼倉庫"
                             icon={Code}
                             data={tools}
@@ -759,13 +756,11 @@ export default function MainApp() {
                                 },
                             ]}
                         />
-                    </div>
                 )}
 
                 {/* Admin: Groups */}
                 {activeTab === 'admin-groups' && currentUser.role === 'admin' && (
-                    <div className="h-full">
-                        <AdminSpreadsheet<Group>
+                    <AdminSpreadsheet<Group>
                             title="群組管理"
                             icon={Users}
                             data={allGroups}
@@ -801,7 +796,6 @@ export default function MainApp() {
                                 },
                             ]}
                         />
-                    </div>
                 )}
             </div>
 

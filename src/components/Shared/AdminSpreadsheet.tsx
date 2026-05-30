@@ -78,8 +78,8 @@ const AdminSpreadsheet = <T extends BaseEntity>({ data, columns, onEdit, onDelet
                 <h3 className="text-white font-bold flex items-center gap-2"><Icon size={20} /> {title} <span className="text-xs bg-white/20 px-2 rounded-full">{sortedData.length}</span></h3>
                 <button onClick={onAdd} className="bg-[#e8b15d] text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1"><Plus size={16} /> 新增</button>
             </div>
-            <div className="flex-1 overflow-x-auto overflow-y-auto p-0">
-                <table className="min-w-[800px] text-sm text-left border-separate border-spacing-0">
+            <div className="flex-1 overflow-x-auto overflow-y-auto p-0 min-h-0">
+                <table className="w-full min-w-[800px] text-sm text-left border-separate border-spacing-0">
                     <thead className="bg-[#f2f4e6] dark:bg-[#1a202c] sticky top-0 z-20">
                         <tr>
                             {columns.map((col, idx) => (
