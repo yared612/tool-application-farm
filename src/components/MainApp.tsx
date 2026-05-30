@@ -606,7 +606,7 @@ export default function MainApp() {
 
                 {/* Admin: Categories */}
                 {activeTab === 'admin-cats' && (currentUser.role === 'admin' || currentUser.role === 'powerUser') && (
-                    <div className="h-full">
+                    <div className="h-full overflow-x-auto">
                         <AdminSpreadsheet<Category>
                             title="類別資料庫"
                             icon={Layout}
