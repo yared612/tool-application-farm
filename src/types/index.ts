@@ -38,6 +38,8 @@ export interface Tool extends BaseEntity {
   type?: 'code' | 'url' | 'url_new_tab';
   code?: string;
   url?: string;
+  enabled?: boolean;
+  icon?: string;
 }
 
 export interface Column<T> {
