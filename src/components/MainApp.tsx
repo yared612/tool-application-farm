@@ -17,8 +17,8 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { signInAnonymously } from 'firebase/auth';
 import { addDoc, collection, deleteDoc, doc, getDocs, onSnapshot, orderBy, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
-import { AlertCircle, ArrowDown, ArrowUp, CheckCircle, ChevronDown, ChevronRight, Code, Globe, Grid, Key, Layout, Leaf, LogOut, Save, User as UserIcon, Users } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { AlertCircle, ArrowDown, ArrowUp, BarChart3, Bot, BrainCircuit, CheckCircle, ChevronDown, ChevronRight, ClipboardList, Code, Database, FileText, Film, Globe, Grid, Image, Info, Key, Layout, Leaf, LogOut, Monitor, MoreHorizontal, Notebook, Save, Star, User as UserIcon, Users, Wrench } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
 
 // Imports
 import AdminSpreadsheet from '@/components/Shared/AdminSpreadsheet';
@@ -32,6 +32,30 @@ import { Category, Group, Role, Tool, User } from '@/types';
 import { MemberSelector, PermissionSelector } from './Shared/Selectors';
 
 type ActiveTab = 'dashboard' | 'admin-cats' | 'admin-tools' | 'admin-groups' | 'admin-users';
+
+const TOOL_ICONS: { key: string; label: string; icon: React.ElementType }[] = [
+    { key: 'notebook', label: 'NoteBookLM', icon: Notebook },
+    { key: 'xmind', label: 'XMind', icon: BrainCircuit },
+    { key: 'analysis', label: '分析', icon: BarChart3 },
+    { key: 'project', label: '專案', icon: ClipboardList },
+    { key: 'document', label: '文件', icon: FileText },
+    { key: 'data', label: '資料', icon: Database },
+    { key: 'tool', label: '工具', icon: Wrench },
+    { key: 'media', label: '影音', icon: Film },
+    { key: 'ai', label: 'AI', icon: Bot },
+    { key: 'info', label: '資訊', icon: Info },
+    { key: 'customer', label: '客戶', icon: Users },
+    { key: 'image', label: '圖片', icon: Image },
+    { key: 'system', label: '系統', icon: Monitor },
+    { key: 'important', label: '重要', icon: Star },
+    { key: 'other', label: '其他', icon: MoreHorizontal },
+];
+
+const getToolIcon = (tool: Tool) => {
+    const found = TOOL_ICONS.find(i => i.key === tool.icon);
+    if (found) return found.icon;
+    return tool.type === 'url' || tool.type === 'url_new_tab' ? Globe : Code;
+};
 
 const SortableToolItem = ({ id, tool, handleToolClick }: { id: string, tool: Tool, handleToolClick: (tool: Tool) => void }) => {
     const {
@@ -57,9 +81,7 @@ const SortableToolItem = ({ id, tool, handleToolClick }: { id: string, tool: Too
             className="bg-white dark:bg-[#1a202c] p-4 rounded-xl shadow cursor-pointer hover:scale-105 transition flex flex-col items-center"
         >
             <div className="w-12 h-12 bg-green-50 rounded-lg flex items-center justify-center mb-2">
-                {tool.type === 'url' || tool.type === 'url_new_tab'
-                    ? <Globe className="text-[#68c9bc]" />
-                    : <Code className="text-[#68c9bc]" />}
+                {React.createElement(getToolIcon(tool), { className: 'text-[#68c9bc]', size: 24 })}
             </div>
             <span className="font-bold text-sm dark:text-gray-200">{tool.name}</span>
         </div>
@@ -103,7 +125,7 @@ export default function MainApp() {
 
     // Forms
     const [catForm, setCatForm] = useState<Partial<Category>>({ name: '', description: '', allowedUsers: ['PUBLIC'], allowedGroups: [] });
-    const [toolForm, setToolForm] = useState<Partial<Tool>>({ name: '', categoryId: '', type: 'code', code: '', url: '', allowedUsers: ['PUBLIC'], allowedGroups: [] });
+    const [toolForm, setToolForm] = useState<Partial<Tool>>({ name: '', categoryId: '', type: 'code', code: '', url: '', allowedUsers: ['PUBLIC'], allowedGroups: [], enabled: true, icon: 'tool' });
     const [userForm, setUserForm] = useState<Partial<User>>({ username: '', password: '', role: 'user', enabled: true });
     const [groupForm, setGroupForm] = useState<Partial<Group>>({ name: '', description: '', memberIds: [] });
     const [toolFormErrors, setToolFormErrors] = useState<{ name?: string, categoryId?: string }>({});
@@ -278,6 +300,16 @@ export default function MainApp() {
         }
     };
 
+    const handleToolEnabledToggle = async (tool: Tool, enabled: boolean) => {
+        try {
+            const toolRef = doc(db, 'artifacts', appId, 'public', 'data', 'tools', tool.id);
+            await updateDoc(toolRef, { enabled });
+        } catch (e) {
+            console.error("Failed to toggle tool enabled state", e);
+            setAlertState({ isOpen: true, title: '系統錯誤', message: '更新工具狀態失敗', type: 'error' });
+        }
+    };
+
     const handleLogin = async (u: string, p: string, remember: boolean, err: any) => {
         setLoading(true);
         const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'users'), where('username', '==', u), where('password', '==', p));
@@ -353,7 +385,7 @@ export default function MainApp() {
             return;
         }
 
-        handleSave('tools', finalFormState, setIsToolModalOpen, () => setToolForm({ name: '', categoryId: '', type: 'code', code: '', url: '', allowedUsers: ['PUBLIC'], allowedGroups: [] }));
+        handleSave('tools', finalFormState, setIsToolModalOpen, () => setToolForm({ name: '', categoryId: '', type: 'code', code: '', url: '', allowedUsers: ['PUBLIC'], allowedGroups: [], enabled: true, icon: 'tool' }));
     };
 
     const handleUserSave = () => {
@@ -483,6 +515,10 @@ export default function MainApp() {
     };
 
     const handleToolClick = (tool: Tool) => {
+        if ((tool.enabled ?? true) === false) {
+            setAlertState({ isOpen: true, title: '無法使用', message: '此工具已停用，請聯繫管理員。', type: 'error' });
+            return;
+        }
         if (tool.type === 'url_new_tab') {
             if (tool.url) {
                 window.open(tool.url, '_blank', 'noopener,noreferrer');
@@ -537,7 +573,7 @@ export default function MainApp() {
                     >
                         <div className="space-y-4 overflow-y-auto custom-scrollbar pb-20">
                             {sortedCategories.filter(canSee).map((cat, idx) => {
-                                const visibleTools = tools.filter(t => t.categoryId === cat.id && canSee(t)).sort((a, b) => (a.order || 0) - (b.order || 0));
+                                const visibleTools = tools.filter(t => t.categoryId === cat.id && canSee(t) && (t.enabled ?? true)).sort((a, b) => (a.order || 0) - (b.order || 0));
                                 if (!visibleTools.length && currentUser.role !== 'admin') return null;
                                 const isExp = expandedCats.includes(cat.id);
                                 const toolIds = visibleTools.map(t => t.id);
@@ -606,7 +642,7 @@ export default function MainApp() {
 
                 {/* Admin: Categories */}
                 {activeTab === 'admin-cats' && (currentUser.role === 'admin' || currentUser.role === 'powerUser') && (
-                    <div className="h-full">
+                    <div className="h-full overflow-x-auto">
                         <AdminSpreadsheet<Category>
                             title="類別資料庫"
                             icon={Layout}
@@ -643,7 +679,7 @@ export default function MainApp() {
                             // 重置 Form 時記得把 type 設回 code
                             onAdd={() => {
                                 setEditingItem(null);
-                                setToolForm({ name: '', categoryId: categories[0]?.id || '', type: 'code', code: '', url: '', allowedUsers: ['PUBLIC'], allowedGroups: [] });
+                                setToolForm({ name: '', categoryId: categories[0]?.id || '', type: 'code', code: '', url: '', allowedUsers: ['PUBLIC'], allowedGroups: [], enabled: true, icon: 'tool' });
                                 setIsToolModalOpen(true);
                                 setToolFormErrors({});
                             }}
@@ -656,6 +692,19 @@ export default function MainApp() {
                             onDelete={(id) => handleDelete('tools', id)}
                             columns={[
                                 { label: '工具名稱', key: 'name' },
+                                {
+                                    label: '圖示',
+                                    key: 'icon',
+                                    render: (icon) => {
+                                        const found = TOOL_ICONS.find(i => i.key === icon);
+                                        if (found) {
+                                            const IconComp = found.icon;
+                                            return <IconComp size={20} className="text-[#68c9bc]" />;
+                                        }
+                                        return <Globe size={20} className="text-[#68c9bc]" />;
+                                    },
+                                    getValue: (icon) => TOOL_ICONS.find(i => i.key === icon)?.label || '網頁',
+                                },
                                 {
                                     label: '類型',
                                     key: 'type',
@@ -692,6 +741,21 @@ export default function MainApp() {
                                             <span className="bg-blue-100 text-blue-700 px-1 rounded">{u?.length || 0} 人</span>
                                         </div>,
                                     getValue: (u, item) => u?.includes('PUBLIC') ? '公開' : `${item.allowedGroups?.length || 0} 群組, ${u?.length || 0} 人`,
+                                },
+                                {
+                                    label: '啟用狀態',
+                                    key: 'enabled',
+                                    render: (enabled, item) => (
+                                        <label className="switch">
+                                            <input
+                                                type="checkbox"
+                                                checked={enabled ?? true}
+                                                onChange={(e) => handleToolEnabledToggle(item, e.target.checked)}
+                                            />
+                                            <span className="slider round"></span>
+                                        </label>
+                                    ),
+                                    getValue: (enabled) => (enabled ?? true) ? '是' : '否',
                                 },
                             ]}
                         />
@@ -816,6 +880,23 @@ export default function MainApp() {
                         onGroupChange={ids => setToolForm(prev => ({ ...prev, allowedGroups: ids }))}
                     />
 
+                    {/* 圖示選擇 */}
+                    <div>
+                        <label className="text-sm font-bold block mb-2">工具圖示</label>
+                        <div className="grid grid-cols-5 gap-2">
+                            {TOOL_ICONS.map(({ key, label, icon: IconComp }) => (
+                                <div
+                                    key={key}
+                                    onClick={() => setToolForm({ ...toolForm, icon: key })}
+                                    className={`flex flex-col items-center gap-1 p-2 rounded-xl cursor-pointer border-2 transition-all ${toolForm.icon === key ? 'border-[#68c9bc] bg-[#68c9bc]/10' : 'border-gray-200 dark:border-gray-600 hover:border-gray-300'}`}
+                                >
+                                    <IconComp size={22} className={toolForm.icon === key ? 'text-[#68c9bc]' : 'text-gray-500 dark:text-gray-400'} />
+                                    <span className={`text-[10px] font-bold ${toolForm.icon === key ? 'text-[#68c9bc]' : 'text-gray-500 dark:text-gray-400'}`}>{label}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
                     {/* --- 新增：工具類型切換 --- */}
                     <div className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-200 dark:border-gray-600">
                         <label className="text-sm font-bold block mb-2 text-gray-500">工具來源類型</label>
@@ -878,6 +959,19 @@ export default function MainApp() {
                             />
                         </div>
                     )}
+
+                    {/* 啟用狀態 */}
+                    <div className="flex items-center gap-4">
+                        <label className="text-sm font-bold">啟用工具</label>
+                        <label className="switch">
+                            <input
+                                type="checkbox"
+                                checked={toolForm.enabled ?? true}
+                                onChange={e => setToolForm({ ...toolForm, enabled: e.target.checked })}
+                            />
+                            <span className="slider round"></span>
+                        </label>
+                    </div>
 
                     <button onClick={handleToolSave} className="action-btn">
                         <Save className="inline mr-2" size={18} /> {editingItem ? '儲存變更' : '上架工具'}

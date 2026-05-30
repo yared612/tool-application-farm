@@ -73,17 +73,17 @@ const AdminSpreadsheet = <T extends BaseEntity>({ data, columns, onEdit, onDelet
     };
 
     return (
-        <div className="bg-white dark:bg-[#2d3748] rounded-3xl shadow-lg border-2 md:border-4 border-[#e0ddc8] dark:border-gray-600 overflow-hidden flex flex-col h-full">
+        <div className="bg-white dark:bg-[#2d3748] rounded-3xl shadow-lg border-2 md:border-4 border-[#e0ddc8] dark:border-gray-600 overflow-hidden flex flex-col h-full min-w-0">
             <div className="bg-[#68c9bc] p-3 flex justify-between items-center shrink-0">
                 <h3 className="text-white font-bold flex items-center gap-2"><Icon size={20} /> {title} <span className="text-xs bg-white/20 px-2 rounded-full">{sortedData.length}</span></h3>
                 <button onClick={onAdd} className="bg-[#e8b15d] text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1"><Plus size={16} /> 新增</button>
             </div>
-            <div className="flex-1 overflow-auto p-0">
-                <table className="min-w-full text-sm text-left">
+            <div className="flex-1 overflow-x-auto overflow-y-auto p-0">
+                <table className="min-w-[800px] text-sm text-left">
                     <thead className="bg-[#f2f4e6] dark:bg-[#1a202c] sticky top-0 z-10">
                         <tr>
                             {columns.map((col, idx) => (
-                                <th key={idx} className="p-3 font-bold text-[#7f7a6d] dark:text-gray-300 border-b-2 border-[#e0ddc8] relative">
+                                <th key={idx} className={`p-3 font-bold text-[#7f7a6d] dark:text-gray-300 border-b-2 border-[#e0ddc8] relative whitespace-nowrap ${idx === 0 ? 'sticky left-0 bg-[#f2f4e6] dark:bg-[#1a202c] z-20' : ''}`}>
                                     <div className="flex items-center gap-2">
                                         <button onClick={() => setActiveFilterCol(activeFilterCol === col.label ? null : col.label)}><Filter size={14} /></button>
                                         <div className="flex items-center gap-1 cursor-pointer" onClick={() => requestSort(col.label)}>
@@ -106,14 +106,18 @@ const AdminSpreadsheet = <T extends BaseEntity>({ data, columns, onEdit, onDelet
                                     )}
                                 </th>
                             ))}
-                            <th className="p-3 border-b-2 border-[#e0ddc8] w-24 text-center sticky right-0 bg-[#f2f4e6] dark:bg-[#1a202c]">操作</th>
+                            <th className="p-3 border-b-2 border-[#e0ddc8] min-w-[90px] text-center sticky right-0 bg-[#f2f4e6] dark:bg-[#1a202c] z-20">操作</th>
                         </tr>
                     </thead>
                     <tbody>
                         {sortedData.map(item => (
                             <tr key={item.id} className="border-b border-[#f0f0f0] dark:border-gray-700 hover:bg-[#fcfdf9] dark:hover:bg-[#3d4a61] group">
-                                {columns.map((col, idx) => <td key={idx} className="p-3 max-w-[200px] truncate">{col.render ? col.render(item[col.key], item) : String(item[col.key])}</td>)}
-                                <td className="p-2 flex gap-1 justify-center sticky right-0 bg-white dark:bg-[#2d3748] group-hover:bg-[#fcfdf9]">
+                                {columns.map((col, idx) => (
+                                    <td key={idx} className={`p-3 min-w-[120px] max-w-[300px] truncate ${idx === 0 ? 'sticky left-0 bg-white dark:bg-[#2d3748] group-hover:bg-[#fcfdf9] dark:group-hover:bg-[#3d4a61] z-10' : ''}`}>
+                                        {col.render ? col.render(item[col.key], item) : String(item[col.key])}
+                                    </td>
+                                ))}
+                                <td className="p-2 flex gap-1 justify-center sticky right-0 bg-white dark:bg-[#2d3748] group-hover:bg-[#fcfdf9] dark:group-hover:bg-[#3d4a61] z-10">
                                     <button onClick={() => onEdit(item)} className="p-1.5 bg-blue-100 text-blue-600 rounded-lg"><Edit size={14} /></button>
                                     <button onClick={() => onDelete(item.id)} className="p-1.5 bg-red-100 text-red-600 rounded-lg"><Trash2 size={14} /></button>
                                 </td>
