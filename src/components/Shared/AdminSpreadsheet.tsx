@@ -1,13 +1,13 @@
 'use client';
 import { BaseEntity, Column } from '@/types';
-import { ArrowDown, ArrowUp, Edit, Filter, Plus, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, Download, Edit, Filter, Plus, Trash2 } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 
 interface Props<T extends BaseEntity> {
-    data: T[]; columns: Column<T>[]; onEdit: (item: T) => void; onDelete: (id: string) => void; onAdd: () => void; title: string; icon: React.ElementType;
+    data: T[]; columns: Column<T>[]; onEdit: (item: T) => void; onDelete: (id: string) => void; onAdd: () => void; title: string; icon: React.ElementType; exportFileName?: string;
 }
 
-const AdminSpreadsheet = <T extends BaseEntity>({ data, columns, onEdit, onDelete, onAdd, title, icon: Icon }: Props<T>) => {
+const AdminSpreadsheet = <T extends BaseEntity>({ data, columns, onEdit, onDelete, onAdd, title, icon: Icon, exportFileName }: Props<T>) => {
     const [activeFilterCol, setActiveFilterCol] = useState<string | null>(null);
     const [filters, setFilters] = useState<Record<string, string[]>>({});
     const [sortConfig, setSortConfig] = useState<{ label: string; direction: 'ascending' | 'descending' } | null>(null);
@@ -16,8 +16,28 @@ const AdminSpreadsheet = <T extends BaseEntity>({ data, columns, onEdit, onDelet
         if (col.getValue) {
             return col.getValue(item[col.key], item);
         }
-        // This fallback is problematic for arrays, but getValue should be provided for them.
         return String(item[col.key]);
+    };
+
+    const handleExportCSV = () => {
+        const header = columns.map(col => col.label).join(',');
+        const rows = sortedData.map(item => {
+            return columns.map(col => {
+                const val = getVal(item, col);
+                const finalVal = Array.isArray(val) ? val.join(';') : String(val);
+                return `"${finalVal.replace(/"/g, '""')}"`;
+            }).join(',');
+        });
+        const csvContent = [header, ...rows].join('\n');
+        const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        link.setAttribute('download', `${exportFileName || title}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     };
 
     const getUnique = (label: string) => {
@@ -76,7 +96,10 @@ const AdminSpreadsheet = <T extends BaseEntity>({ data, columns, onEdit, onDelet
         <div className="bg-white dark:bg-[#2d3748] rounded-3xl shadow-lg border-2 md:border-4 border-[#e0ddc8] dark:border-gray-600 overflow-hidden flex flex-col h-full min-w-0">
             <div className="bg-[#68c9bc] p-3 flex justify-between items-center shrink-0">
                 <h3 className="text-white font-bold flex items-center gap-2"><Icon size={20} /> {title} <span className="text-xs bg-white/20 px-2 rounded-full">{sortedData.length}</span></h3>
-                <button onClick={onAdd} className="bg-[#e8b15d] text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1"><Plus size={16} /> 新增</button>
+                <div className="flex gap-2">
+                    <button onClick={handleExportCSV} className="bg-white/20 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 hover:bg-white/30 transition-colors"><Download size={16} /> 匯出</button>
+                    <button onClick={onAdd} className="bg-[#e8b15d] text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 hover:bg-[#d4a14e] transition-colors"><Plus size={16} /> 新增</button>
+                </div>
             </div>
             <div className="flex-1 overflow-x-auto overflow-y-auto p-0 min-h-0">
                 <table className="w-full min-w-[800px] text-sm text-left border-separate border-spacing-0">

@@ -389,30 +389,37 @@ export default function MainApp() {
     };
 
     const handleUserSave = () => {
+        const trimmedUsername = userForm.username?.trim();
+        
         // 檢查帳號是否為空
-        if (!userForm.username?.trim()) {
+        if (!trimmedUsername) {
             setAlertState({ isOpen: true, title: '資料不完整', message: '「帳號」為必填欄位', type: 'error' });
             return;
         }
+
+        // 檢查密碼長度 (必須大於 5 碼)
+        if (!userForm.password || userForm.password.length <= 5) {
+            setAlertState({ isOpen: true, title: '資料不完整', message: '密碼長度必須大於 5 碼', type: 'error' });
+            return;
+        }
     
-        // This check is for new items.
+        // 檢查帳號重複
         if (!editingItem) {
-            const isDuplicate = allUsers.some(user => user.username === userForm.username);
+            const isDuplicate = allUsers.some(user => user.username === trimmedUsername);
             if (isDuplicate) {
                 setAlertState({ isOpen: true, title: '錯誤', message: '此帳號已經存在', type: 'error' });
                 return;
             }
         }
-        // This check is for existing items, if the username is changed.
-        else if (editingItem.username !== userForm.username) {
-            const isDuplicate = allUsers.some(user => user.username === userForm.username);
+        else if (editingItem.username !== trimmedUsername) {
+            const isDuplicate = allUsers.some(user => user.username === trimmedUsername);
             if (isDuplicate) {
                 setAlertState({ isOpen: true, title: '錯誤', message: '此帳號已經存在', type: 'error' });
                 return;
             }
         }
     
-        handleSave('users', userForm, setIsUserModalOpen, () => setUserForm({ username: '', password: '', description: '', role: 'user', enabled: true }));
+        handleSave('users', { ...userForm, username: trimmedUsername }, setIsUserModalOpen, () => setUserForm({ username: '', password: '', description: '', role: 'user', enabled: true }));
     };
 
     const handleGroupSave = () => {
